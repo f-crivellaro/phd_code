@@ -1,6 +1,7 @@
 import pycom
 import time
 from machine import Pin,I2C
+import math
 
 
 reset_pin = Pin('P5', mode=Pin.OUT)
@@ -56,15 +57,19 @@ def write(addr, data):
     # buf[1] = data[1]
     # buf[2] = data[2]
     nbytes = i2c_bus.writeto_mem(i2c_afe_id, addr, buf, addrsize=8)
+    if nbytes < 3:
+        print('Error: I2C writing ' + hex(addr) + ': ' + str(buf))
     # time.sleep(1)
-    print('N bytes written to AFE4404: %d' % nbytes)
+    # print('N bytes written to AFE4404: %d' % nbytes)
 
 def read(addr):
     data = bytearray(3)
     nbytes = i2c_bus.readfrom_mem_into(i2c_afe_id, addr, data, addrsize=8)
-    print('N bytes read: %d' % nbytes)
-    print('Data Read from I2C Address 0x' + hex(addr) + ': ' + str(data))
-    return data
+    # print('N bytes read: %d' % nbytes)
+    if nbytes < 3:
+        print('Error: I2C reading ' + hex(addr))
+    # print('Data Read from I2C Address ' + hex(addr) + ': ' + str(data))
+    return int(data[0] * math.pow(2,16) + data[1] * math.pow(2,8) + data[2])
 
 def pin_handler(arg):
     print("Interrupt received")
@@ -92,8 +97,7 @@ def config():
     write(0x00, 1)
 
     print("Read Addr 0x23 to check OSC_ENABLE (bit 9)")
-    if read(0x23) == bytearray([0x00, 0x02, 0x00]):
-        print('AFE4404 internal oscillator (4 MHz) configured')
+    print(read(0x23))
 
     print('\n')
 
