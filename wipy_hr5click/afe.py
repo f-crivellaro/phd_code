@@ -77,21 +77,18 @@ def pin_handler(arg):
     print('\n-------------\n')
     # time.sleep(1)
 
-p_in = Pin('P6', mode=Pin.IN, pull=Pin.PULL_UP)
-p_in.callback(Pin.IRQ_RISING, pin_handler)
+# p_in = Pin('P6', mode=Pin.IN, pull=Pin.PULL_UP)
+# p_in.callback(Pin.IRQ_RISING, pin_handler)
 
 def config():
     global i2c_afe_id, i2c_bus
     print("Enabling Register write mode")
-    # write(0x00, [0x00, 0x00, 0x00])
     write(0x00, 0)
 
     print("Enable internal oscillator (4 MHz)")
-    # write(0x23, [0x00, 0x02, 0x00])
     write(0x23, 131584)
 
     print("Enable the readout of write registers")
-    # write(0x00, [0x00, 0x00, 0x01])
     write(0x00, 1)
 
     print("Read Addr 0x23 to check OSC_ENABLE (bit 9)")
@@ -101,6 +98,8 @@ def config():
     print('\n')
 
     print("AFE4404 - Final config started")
+    print("Enabling Register write mode")
+    write(0x00, 0)
     write(0x39, 0)
     write(0x1D, 39999)
     write(0x09, 0)
@@ -140,5 +139,7 @@ def config():
     write(0x20, 32772)
     write(0x21, 3)
     write(0x22, 12495)
+    print("Enable the readout of write registers")
+    write(0x00, 1)
     print("AFE4404 - Final config ended")
 
