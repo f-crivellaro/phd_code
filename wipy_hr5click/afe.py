@@ -2,6 +2,7 @@ import pycom
 import time
 from machine import Pin,I2C
 import math
+from mqtt import MQTTClient
 
 
 reset_pin = Pin('P5', mode=Pin.OUT)
@@ -71,19 +72,18 @@ def read(addr):
     # print('Data Read from I2C Address ' + hex(addr) + ': ' + str(data))
     return int(data[0] * math.pow(2,16) + data[1] * math.pow(2,8) + data[2])
 
-def pin_handler(arg):
-    print("Interrupt received")
-    print(read(0x2A))
-    print(read(0x2B))
-    print(read(0x2C))
-    print(read(0x2D))
-    print(read(0x2E))
-    print(read(0x2F))
-    print('\n-------------\n')
-    # time.sleep(1)
-
-# p_in = Pin('P6', mode=Pin.IN, pull=Pin.PULL_UP)
-# p_in.callback(Pin.IRQ_RISING, pin_handler)
+def read_adc(addr):
+    data = bytearray(3)
+    nbytes = i2c_bus.readfrom_mem_into(i2c_afe_id, addr, data, addrsize=8)
+    # print('N bytes read: %d' % nbytes)
+    if nbytes < 3:
+        print('Error: I2C reading ' + hex(addr))
+    # print('Data Read from I2C Address ' + hex(addr) + ': ' + str(data))
+    data_int = int(data[0] * math.pow(2,16) + data[1] * math.pow(2,8) + data[2])
+    if data_int > 0x1FFFFF:
+        return (-1)*(0xFFFFFF - data_int + 1)
+    else:
+        return data_int
 
 def config():
     global i2c_afe_id, i2c_bus
