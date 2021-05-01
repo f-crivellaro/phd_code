@@ -39,7 +39,7 @@ def i2c_init():
 def start():
     global i2c_bus
     print('*** System configuration started ***\n')
-    pycom.heartbeat(True)
+    pycom.heartbeat(False)
     reset()
     i2c_bus = i2c_init()
     if i2c_bus == 'error':

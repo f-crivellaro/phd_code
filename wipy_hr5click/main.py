@@ -1,10 +1,18 @@
 import pycom
 import time
 import machine
-from machine import Pin,I2C
+from machine import Pin,I2C, Timer, RTC
 from network import WLAN
 from mqtt import MQTTClient
+import array as arr
+import json
 import afe
+
+measure_requested = 0
+measurements = []
+timestamps = []
+measurement_timestamp = 0
+chrono = Timer.Chrono()
 
 print('\n\n')
 print('--------------------')
@@ -22,10 +30,35 @@ print('\nLooking for Wifi networks...')
 while not wlan.isconnected():  
     machine.idle()
 print("Connected to WiFi\n")
+print(wlan.ifconfig())
 time.sleep(1)
 
+def alarm_handler(alarm):
+    global measure_requested, measurements, timestamps, measurement_timestamp
+    measure_requested = 0
+    print('Measurement ended')
+    print('Sending data')
+    client.publish(topic="wipy/reply", msg=json.dumps({'series': ['PPG'], 'data': [measurements], 'labels': timestamps}))
+    print('Data sent')
+    measurements = []
+    measurement_timestamp = 0
+    timestamps = []
+    chrono.stop()
+    chrono.reset()
+    alarm.cancel()
+
+
 def sub_cb(topic, msg):
-   print(msg)
+    global measure_requested
+    print('MQTT message received in topic: ' + topic.decode('utf-8'))
+    print('MQTT message received with payload: ' + msg.decode('utf-8'))
+    message = json.loads(msg.decode('utf-8'))
+    if message['action'] == "start":
+        chrono.start()
+        measure_requested = 1
+        measure_alarm = Timer.Alarm(alarm_handler, message['duration'])
+        print('MQTT measurement requested')
+
 
 print('\nMQTT configuration started')
 client = MQTTClient("wipy", "192.168.0.252", port=1883)
@@ -40,13 +73,20 @@ print('MQTT configuration ended')
 
 
 def pin_handler(arg):
-    client.publish(topic="wipy/reply", msg=str(afe.read_adc(0x2F)))
+    global measure_requested, measurements, measurement_timestamp, timestamps
+    if measure_requested:
+        measurement_timestamp = chrono.read()
+        timestamps.append(measurement_timestamp)
+        measurements.append(afe.read_adc(0x2F))
+        print('Measured ' + str(afe.read_adc(0x2F)) + ' at ' + str(measurement_timestamp))
+        measure_start = time.ticks_ms()
+        # client.publish(topic="wipy/reply", msg=str(afe.read_adc(0x2F)))
 
 p_in = Pin('P6', mode=Pin.IN, pull=Pin.PULL_UP)
 p_in.callback(Pin.IRQ_RISING, pin_handler)
 
 while True:
-    continue
+    client.check_msg()
     # print('\n')
     # print('LED2VAL: ' + str(afe.read_adc(0x2A)))
     # print('ALED2VAL\LED3VAL: ' + str(afe.read_adc(0x2B)))
@@ -58,4 +98,4 @@ while True:
     # client.publish(topic="wipy/reply", msg=str(afe.read_adc(0x2D)))
     # print("Msg sent")
     # print('-------------')
-    # time.sleep(0.001)
+    time.sleep(0.1)
