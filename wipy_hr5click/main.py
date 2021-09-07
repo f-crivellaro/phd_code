@@ -24,7 +24,7 @@ afe.start()
 afe.config()
 
 wlan = WLAN(mode=WLAN.STA)
-wlan.connect("Smart Devices", auth=(WLAN.WPA2, "comptaroot"), timeout=5000)
+wlan.connect("Smart Devices", auth=(WLAN.WPA2, "Compta202004"), timeout=5000)
 
 print('\nLooking for Wifi networks...')
 while not wlan.isconnected():  
@@ -61,7 +61,7 @@ def sub_cb(topic, msg):
 
 
 print('\nMQTT configuration started')
-client = MQTTClient("wipy", "192.168.0.252", port=1883)
+client = MQTTClient("wipy", "192.168.73.177", port=1883)
 client.set_callback(sub_cb)
 if client.connect() == 0:
     print('MQTT client connected')
