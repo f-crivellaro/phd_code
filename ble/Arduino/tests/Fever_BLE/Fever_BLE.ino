@@ -130,7 +130,7 @@ void setup() {
   Serial.println("Waiting a client connection to notify...");
 
   // -----------------------------------------------------------------
-  // Scan for temperature sensors untill a sensor is found. Scan for both addresses 0x48 and 0x49
+  // Scan for temperature sensors. Scan for both addresses 0x48 and 0x49
   Wire.begin();
   SearchSensors();
   // -----------------------------------------------------------------
