@@ -120,8 +120,8 @@ void MeasureLight(uint16_t * spectrum) {
   spectrum[5] = data2.ADF6;
   spectrum[6] = data2.ADF7;
   spectrum[7] = data2.ADF8;
-  spectrum[8] = data2.ADCLEAR;
-  spectrum[9] = data2.ADNIR;
+  spectrum[8] = data2.ADNIR;
+//  spectrum[8] = data2.ADCLEAR;
   Serial.print("F5(545-565nm):");
   Serial.println(data2.ADF5);
   Serial.print("F6(580-600nm):");
@@ -190,7 +190,7 @@ void setup() {
 }
 
 void loop() {
-  uint16_t spectrum [10] = { };
+  uint16_t spectrum [9] = { };
 
 
   // BLE routines
@@ -201,8 +201,8 @@ void loop() {
       oldDeviceConnected = deviceConnected;
   }
   if (deviceConnected && !oldDeviceConnected) {
-      pTxCharacteristic->setValue("Welcome to BLE Light Sensor");
-      pTxCharacteristic->notify();
+//      pTxCharacteristic->setValue("Welcome to BLE Light Sensor");
+//      pTxCharacteristic->notify();
       oldDeviceConnected = deviceConnected;
   }
 
@@ -216,7 +216,9 @@ void loop() {
     std::string payload;
     for (int i = 0; i < sizeof(spectrum)/sizeof(spectrum[0]); i++) {
       stream << std::fixed << std::setprecision(2) << spectrum[i];
-      stream << "/";
+      if (i < (sizeof(spectrum)/sizeof(spectrum[0])-1)) {
+        stream << "/";
+      }
 //      std::string s = to_string(spectrum[i]);
 //      payload.append(s);
     }

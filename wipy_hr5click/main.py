@@ -20,8 +20,8 @@ print('PPG Node Begin')
 print('--------------------')
 print('\n')
 
-afe.start()
-afe.config()
+# afe.start()
+# afe.config()
 
 wlan = WLAN(mode=WLAN.STA)
 wlan.connect("Smart Devices", auth=(WLAN.WPA2, "Compta202004"), timeout=5000)
@@ -61,15 +61,18 @@ def sub_cb(topic, msg):
 
 
 print('\nMQTT configuration started')
-client = MQTTClient("wipy", "192.168.73.177", port=1883)
-client.set_callback(sub_cb)
-if client.connect() == 0:
-    print('MQTT client connected')
-else:
-    print('MQTT client connection error')
-time.sleep(1)
-client.subscribe(topic="wipy/command")
-print('MQTT configuration ended')
+try:
+    client = MQTTClient("wipy", "192.168.0.177", port=1883)
+    client.set_callback(sub_cb)
+    if client.connect() == 0:
+        print('MQTT client connected')
+    else:
+        print('MQTT client connection error')
+    time.sleep(1)
+    client.subscribe(topic="wipy/command")
+    print('MQTT configuration ended')
+except:
+    print("MQTT Error!")
 
 
 def pin_handler(arg):
@@ -86,16 +89,23 @@ p_in = Pin('P6', mode=Pin.IN, pull=Pin.PULL_UP)
 p_in.callback(Pin.IRQ_RISING, pin_handler)
 
 while True:
-    client.check_msg()
-    # print('\n')
-    # print('LED2VAL: ' + str(afe.read_adc(0x2A)))
-    # print('ALED2VAL\LED3VAL: ' + str(afe.read_adc(0x2B)))
-    # print('LED1VAL: ' + str(afe.read_adc(0x2C)))
-    # print('ALED1VAL: ' + str(afe.read_adc(0x2D)))
-    # print('LED2-ALED2VAL: ' + str(afe.read_adc(0x2E)))
-    # print('LED1-ALED1VAL: ' + str(afe.read_adc(0x2F)))
-    # print('-------------')
-    # client.publish(topic="wipy/reply", msg=str(afe.read_adc(0x2D)))
-    # print("Msg sent")
-    # print('-------------')
-    time.sleep(0.1)
+    try:
+        client.check_msg()
+        # print('\n')
+        # print('LED2VAL: ' + str(afe.read_adc(0x2A)))
+        # print('ALED2VAL\LED3VAL: ' + str(afe.read_adc(0x2B)))
+        # print('LED1VAL: ' + str(afe.read_adc(0x2C)))
+        # print('ALED1VAL: ' + str(afe.read_adc(0x2D)))
+        # print('LED2-ALED2VAL: ' + str(afe.read_adc(0x2E)))
+        # print('LED1-ALED1VAL: ' + str(afe.read_adc(0x2F)))
+        # print('-------------')
+        # client.publish(topic="wipy/reply", msg=str(afe.read_adc(0x2D)))
+        # print("Msg sent")
+        # print('-------------')
+        time.sleep(0.1)
+    except:
+        print("System Error")
+        time.sleep(5)
+        print("Entering in Deep Sleep")
+        machine.deepsleep(10000)
+
