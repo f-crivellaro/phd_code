@@ -71,25 +71,27 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
+uint sample_cnt = 0;
 
 ProtoBeat_Sensor beatSensor;
-bool AFE_int = false;
+bool AFE_int = true;
 
 void IRAM_ATTR INThandler(void){
   // Do not use Serial.prints inside interruption handlers
     AFE_int = true;
+    //sample_cnt++;
 }
 
 
 void systemStart(void){
     Serial.println("AFE Sensor Starting...");
     pinMode(RESET_STBY_GPIO, OUTPUT);
-    pinMode(ADC_RDY_INT_GPIO, INPUT_PULLUP);
+    pinMode(ADC_RDY_INT_GPIO, INPUT);
     beatSensor.reset();
     Wire.begin();
 
     if (beatSensor.scanAvailableSensors()){
-        attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
+        //attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
         beatSensor.AFEconfig();
     }
 }
@@ -138,6 +140,10 @@ void setup() {
 
 }
 
+int32_t measurement = 0;
+const int max_samples = 10;
+int32_t measurements[max_samples];
+
 void loop() {
 
   // BLE routines
@@ -155,7 +161,35 @@ void loop() {
 
 
   if (AFE_int){
-    Serial.println(beatSensor.getMeasurement());
+    //AFE_int = false;
+    measurement = beatSensor.getMeasurement();
+    measurements[sample_cnt] = measurement;
+    sample_cnt++;
+    Serial.println(measurement);
+    Serial.println(sample_cnt);
+
+    if (deviceConnected) {
+      Serial.println("Sending buffer through BLE");
+      for (int i=0; i<max_samples; i++){
+        int32_t tmp = measurements[i];
+        std::stringstream stream;
+        stream << std::fixed << std::setprecision(2) << tmp ;
+        std::string s = stream.str();
+        pTxCharacteristic->setValue(s);
+        pTxCharacteristic->notify();
+      }
+    }
+
+    if (sample_cnt >= max_samples){
+      Serial.println("Max samples sampled");
+      sample_cnt = 0;
+      if (deviceConnected) {
+        pTxCharacteristic->setValue("endArray");
+        pTxCharacteristic->notify();
+      }
+      delay(1000);
+    }
+    delay(10);
   }
-  delay(1000);
+  //delay(1000);
 }

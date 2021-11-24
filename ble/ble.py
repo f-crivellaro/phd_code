@@ -6,6 +6,7 @@ import paho.mqtt.client as mqtt
 import numpy as np
 import json
 from bluepy.btle import Scanner, DefaultDelegate, Peripheral, UUID
+import time
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -40,8 +41,11 @@ client = mqtt.Client("Proto-PC")
 log.info("MQTT: connecting to broker - %s", broker_address)
 client.connect(broker_address)
 topic_cmd = "spec/cmd/meas"
+topic_beat = "wipy/command"
 log.info("Subscribing to topic %s" %topic_cmd)
+log.info("Subscribing to topic %s" %topic_beat)
 client.subscribe(topic_cmd)
+client.subscribe(topic_beat)
 
 last_msg = {}
 def measure_request(client, userdata, message):
@@ -50,8 +54,16 @@ def measure_request(client, userdata, message):
     log.info("MQTT: publishing message to topic %s", topic)
     client.publish(topic, json.dumps(last_msg))
 
+last_beat_msg = {}
+def beat_request(client, userdata, message):
+    log.info('Beat request callback')
+    topic = "wipy/reply"
+    log.info("MQTT: publishing message to topic %s", topic)
+    client.publish(topic, json.dumps(last_beat_msg))
+
 
 client.message_callback_add(topic_cmd, measure_request)
+client.message_callback_add(topic_beat, beat_request)
 client.loop_start()
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -77,16 +89,19 @@ class ProtoBle:
 
 sensorType = ""
 
-
 class MyDelegate(DefaultDelegate):
     def __init__(self):
         DefaultDelegate.__init__(self)
+        self._beat_array = []
+        self._beat_timestamps = []
+        self._beat_start = None
 
     def handleNotification(self, cHandle, data):
-        global last_msg
-        log.info("A notification was received: %s", data.decode("utf-8"))
+        global last_msg, last_beat_msg
+        data_decoded = data.decode("utf-8")
+        log.info("A notification was received: %s", data_decoded)
         if sensorType == "Proto-Light":
-            measures = data.decode("utf-8")
+            measures = data_decoded
             measures_splitted = measures.split('/')
             measures_formatted = [int(a) for a in measures_splitted]
             log.debug('Measured Splited: %s', measures_formatted)
@@ -101,6 +116,22 @@ class MyDelegate(DefaultDelegate):
             # log.info('Wavelengths: %s', x)
             msg = {'data': full_data.tolist(), 'wavelengths': x.tolist()}
             last_msg = msg
+        if sensorType == "Proto-Beat":
+            if data_decoded != "endArray":
+                if not self._beat_start:
+                    self._beat_start = time.time()
+                    self._beat_timestamps.append(0)
+                else:
+                    self._beat_timestamps.append(time.time()-self._beat_start)
+
+                self._beat_array.append(data_decoded)
+            else:
+                log.debug('Proto-Beat ready to be sent')
+                msg = {'series': ['PPG'], 'data': [self._beat_array], 'labels': self._beat_timestamps}
+                last_beat_msg = msg
+                self._beat_timestamps = []
+                self._beat_array = []
+                self._beat_start = None
 
 
 scanner = Scanner().withDelegate(ScanDelegate())
@@ -111,7 +142,7 @@ for dev in devices:
     for (adtype, desc, value) in dev.getScanData():
         log.info("  %s = %s" % (desc, value))
         if desc == "Complete Local Name":
-            if value == "Proto-Fever" or value == "Proto-Light":
+            if value == "Proto-Fever" or value == "Proto-Light" or value == "Proto-Beat":
                 sensorType = value
                 device = Peripheral(dev.addr)
                 device.setMTU(50)

@@ -130,13 +130,13 @@ void ProtoBeat_Sensor::reset(void){
 }
 
 
-float ProtoBeat_Sensor::getMeasurement(void){
+int32_t ProtoBeat_Sensor::getMeasurement(void){
     uint32_t data = 0;
     data = AFEread(0x2F);
     if (data > 0x1FFFFF){
-        return (-1) * (0xFFFFFF - data + 1);
+        return (int32_t) (-1) * (0xFFFFFF - data + 1);
     } else {
-        return data;
+        return (int32_t) data;
     }
 
 }
