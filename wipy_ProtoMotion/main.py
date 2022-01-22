@@ -6,7 +6,6 @@ from network import WLAN
 from mqtt import MQTTClient
 import array as arr
 import json
-import afe
 
 pycom.bootmgr(safeboot=True)
 
@@ -15,15 +14,13 @@ measurements = []
 timestamps = []
 measurement_timestamp = 0
 chrono = Timer.Chrono()
+mqtt_connected = False
 
 print('\n\n')
 print('--------------------')
-print('PPG Node Begin CCC')
+print('ProtoMotion')
 print('--------------------')
 print('\n')
-
-# afe.start()
-# afe.config()
 
 wlan = WLAN(mode=WLAN.STA)
 wlan.connect("Smart Devices", auth=(WLAN.WPA2, "Compta202004"), timeout=5000)
@@ -64,46 +61,40 @@ def sub_cb(topic, msg):
 
 print('\nMQTT configuration started')
 try:
-    client = MQTTClient("wipy", "192.168.0.177", port=1883)
-    client.set_callback(sub_cb)
-    if client.connect() == 0:
+    client = MQTTClient("wipy", "192.168.0.177", port=1883, keepalive= 100)
+    if client.connect(True) == 0:
         print('MQTT client connected')
+        client.set_callback(sub_cb)
+        client.subscribe(topic="wipy/command")
+        mqtt_connected = True
+        print('MQTT configuration ended')
     else:
+        client.disconnect()
         print('MQTT client connection error')
     time.sleep(1)
-    client.subscribe(topic="wipy/command")
-    print('MQTT configuration ended')
-except:
+except Exception as e:
     print("MQTT Error!")
+    print(e)
 
-
-# def pin_handler(arg):
-#     global measure_requested, measurements, measurement_timestamp, timestamps
-#     if measure_requested:
-#         measurement_timestamp = chrono.read()
-#         timestamps.append(measurement_timestamp)
-#         measurements.append(afe.read_adc(0x2F))
-#         print('Measured ' + str(afe.read_adc(0x2F)) + ' at ' + str(measurement_timestamp))
-#         measure_start = time.ticks_ms()
-#         # client.publish(topic="wipy/reply", msg=str(afe.read_adc(0x2F)))
-
-# p_in = Pin('P6', mode=Pin.IN, pull=Pin.PULL_UP)
-# p_in.callback(Pin.IRQ_RISING, pin_handler)
 
 while True:
     try:
-        client.check_msg()
-        # print('\n')
-        # print('LED2VAL: ' + str(afe.read_adc(0x2A)))
-        # print('ALED2VAL\LED3VAL: ' + str(afe.read_adc(0x2B)))
-        # print('LED1VAL: ' + str(afe.read_adc(0x2C)))
-        # print('ALED1VAL: ' + str(afe.read_adc(0x2D)))
-        # print('LED2-ALED2VAL: ' + str(afe.read_adc(0x2E)))
-        # print('LED1-ALED1VAL: ' + str(afe.read_adc(0x2F)))
-        # print('-------------')
-        # client.publish(topic="wipy/reply", msg=str(afe.read_adc(0x2D)))
-        # print("Msg sent")
-        # print('-------------')
+        if mqtt_connected:
+            client.ping()
+            client.check_msg()
+        # else:
+        #     print('\nNew MQTT Connection Trial')
+        #     try:
+        #         if client.connect() == 0:
+        #             print('MQTT client connected')
+        #             client.subscribe(topic="wipy/command")
+        #             print('MQTT Connected')
+        #             mqtt_connected = True
+        #         else:
+        #             print('MQTT client connection error')
+        #     except:
+        #         print("MQTT Error!")
+            
         time.sleep(0.1)
     except:
         print("System Error")

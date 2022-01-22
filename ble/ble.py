@@ -7,6 +7,8 @@ import numpy as np
 import json
 from bluepy.btle import Scanner, DefaultDelegate, Peripheral, UUID
 import time
+import csv
+from datetime import datetime
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -14,6 +16,11 @@ import time
 
 LOG_PATH = './logs'
 LOG_FILENAME = '/ble.log'
+DATA_PATH = './data'
+FEVER_FILE = '/fever.csv'
+
+# Define time 0 for measurements
+start_time = time.time()
 
 # Set up a specific logger with our desired output level
 log = logging.getLogger('')
@@ -42,10 +49,13 @@ log.info("MQTT: connecting to broker - %s", broker_address)
 client.connect(broker_address)
 topic_cmd = "spec/cmd/meas"
 topic_beat = "wipy/command"
+topic_fever = "fever/command"
 log.info("Subscribing to topic %s" %topic_cmd)
 log.info("Subscribing to topic %s" %topic_beat)
+log.info("Subscribing to topic %s" %topic_fever)
 client.subscribe(topic_cmd)
 client.subscribe(topic_beat)
+client.subscribe(topic_fever)
 
 last_msg = {}
 def measure_request(client, userdata, message):
@@ -55,11 +65,20 @@ def measure_request(client, userdata, message):
     client.publish(topic, json.dumps(last_msg))
 
 last_beat_msg = {}
+samples = 100
+sendSamples = False
+
 def beat_request(client, userdata, message):
-    log.info('Beat request callback')
-    topic = "wipy/reply"
-    log.info("MQTT: publishing message to topic %s", topic)
-    client.publish(topic, json.dumps(last_beat_msg))
+    global samples,sendSamples
+    msg = json.loads(message.payload.decode("utf-8"))
+    log.info(f'Beat request callback: msg={msg}')
+    log.debug(f'Samples to acquire: {msg["duration"]}')
+    samples = msg["duration"]
+    sendSamples = True
+    # bleChar[1].write(str(msg["duration"]).encode())
+    # topic = "wipy/reply"
+    # log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
+    # client.publish(topic, json.dumps(last_beat_msg))
 
 
 client.message_callback_add(topic_cmd, measure_request)
@@ -97,7 +116,7 @@ class MyDelegate(DefaultDelegate):
         self._beat_start = None
 
     def handleNotification(self, cHandle, data):
-        global last_msg, last_beat_msg
+        global last_msg, last_beat_msg, sensorType, ProtoDevice
         data_decoded = data.decode("utf-8")
         log.info("A notification was received: %s", data_decoded)
         if sensorType == "Proto-Light":
@@ -117,14 +136,17 @@ class MyDelegate(DefaultDelegate):
             msg = {'data': full_data.tolist(), 'wavelengths': x.tolist()}
             last_msg = msg
         if sensorType == "Proto-Beat":
-            if data_decoded != "endArray":
+            if (data_decoded != "endArray") and (data_decoded != "Welcome to BLE Beat Sensor"):
+                measures = data_decoded
+                measures_splitted = measures.split('/')
+                measures_formatted = [int(a) for a in measures_splitted]
                 if not self._beat_start:
-                    self._beat_start = time.time()
+                    self._beat_start = measures_formatted[1] #time.time()
                     self._beat_timestamps.append(0)
                 else:
-                    self._beat_timestamps.append(time.time()-self._beat_start)
+                    self._beat_timestamps.append(measures_formatted[1]-self._beat_start)
 
-                self._beat_array.append(data_decoded)
+                self._beat_array.append(measures_formatted[0])
             else:
                 log.debug('Proto-Beat ready to be sent')
                 msg = {'series': ['PPG'], 'data': [self._beat_array], 'labels': self._beat_timestamps}
@@ -132,39 +154,91 @@ class MyDelegate(DefaultDelegate):
                 self._beat_timestamps = []
                 self._beat_array = []
                 self._beat_start = None
+                topic = "wipy/reply"
+                log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
+                client.publish(topic, json.dumps(last_beat_msg))
+        if sensorType == "Proto-Fever":
+            try:
+                with open(DATA_PATH+FEVER_FILE, 'a') as f:
+                    writer = csv.writer(f, delimiter=',')
+                    now = time.time()
+                    data_formatted = float(data_decoded)
+                    msg_formatted = [now, data_formatted]
+                    writer.writerow(msg_formatted)
+                    fever_msg = {'data': data_formatted, 'timestamp': now}
+                    topic = "fever/reply/meas"
+                    log.info("MQTT: publishing message to topic %s", topic)
+                    client.publish(topic, json.dumps(fever_msg))
+                    ProtoDevice.disconnect()
+                    ProtoDevice = None
+            except Exception as e: 
+                log.error(e)
+
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+def detectProtos(devices):
+    global sensorType
+    for dev in devices:
+        log.info("Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi))
+        for (adtype, desc, value) in dev.getScanData():
+            log.info("  %s = %s" % (desc, value))
+            if desc == "Complete Local Name":
+                if value == "Proto-Fever" or value == "Proto-Light" or value == "Proto-Beat":
+                    sensorType = value
+                    device = Peripheral(dev.addr)
+                    device.setMTU(50)
+                    device.setDelegate(MyDelegate())
+                    ble_device = ProtoBle(dev.addr, value, device.getServices())
+                    for svc in ble_device.services:
+                        log.info(svc)
+                    bleSensor = UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+                    bleService = device.getServiceByUUID(bleSensor)
+                    bleChar = bleService.getCharacteristics()
+                    for ch in bleChar:
+                        log.info('Properties: %s', ch.propertiesToString())
+                    log.info('Read: %s', bleChar[0].read())
+                    device.writeCharacteristic(bleChar[0].valHandle+1, bytes.fromhex("0100"))
+                    bleChar[1].write(bytes.fromhex("3130"))
+                    # device.writeCharacteristic(bleChar[1].valHandle+1, bytes.fromhex("3130"))
+                    log.info("\n\n")
+                    
+                    return device
+    return None
+                
 
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(2.0)
-
-for dev in devices:
-    log.info("Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi))
-    for (adtype, desc, value) in dev.getScanData():
-        log.info("  %s = %s" % (desc, value))
-        if desc == "Complete Local Name":
-            if value == "Proto-Fever" or value == "Proto-Light" or value == "Proto-Beat":
-                sensorType = value
-                device = Peripheral(dev.addr)
-                device.setMTU(50)
-                device.setDelegate(MyDelegate())
-                ble_device = ProtoBle(dev.addr, value, device.getServices())
-                for svc in ble_device.services:
-                    log.info(svc)
-                bleSensor = UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
-                bleService = device.getServiceByUUID(bleSensor)
-                bleChar = bleService.getCharacteristics()
-                for ch in bleChar:
-                    log.info('Properties: %s', ch.propertiesToString())
-                log.info('Read: %s', bleChar[0].read())
-                device.writeCharacteristic(bleChar[0].valHandle+1, bytes.fromhex("0100"))
-                log.info("\n\n")
-
-# ----------------------------------------------------------------------------------------------------------------------
+ProtoDevice = detectProtos(devices)
 
 while True:
-    if device.waitForNotifications(1.0):
-        # handleNotification() was called
-        continue
 
-    # log.info("Waiting...")
-    # Perhaps do something else here
+    try:
+        if ProtoDevice:
+            ProtoDevice.waitForNotifications(1.0)
+            if sendSamples:
+                bleSensor = UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+                bleService = ProtoDevice.getServiceByUUID(bleSensor)
+                bleChar = bleService.getCharacteristics()
+                bleChar[1].write(str(samples).encode())
+                sendSamples = False
+        else:
+            log.info("BLE Scanning for ProtoDevices")
+            devices = scanner.scan(2.0)
+            ProtoDevice = detectProtos(devices)
+            time.sleep(2)
+    except KeyboardInterrupt:
+        if ProtoDevice:
+            ProtoDevice.disconnect()
+        ProtoDevice = None
+        sys.exit(0)
+    except Exception as e: 
+        log.error(e)
+        log.error("System error, disconnecting BLE device..")
+        if ProtoDevice:
+            ProtoDevice.disconnect()
+        ProtoDevice = None
+        # sys.exit(0)
