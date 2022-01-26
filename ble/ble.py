@@ -24,7 +24,7 @@ start_time = time.time()
 
 # Set up a specific logger with our desired output level
 log = logging.getLogger('')
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)-19s \t %(levelname)-8s \t %(message)s")
 
 # Set logger directory
@@ -94,9 +94,9 @@ class ScanDelegate(DefaultDelegate):
 
     def handleDiscovery(self, dev, isNewDev, isNewData):
         if isNewDev:
-            log.info("Discovered device %s", dev.addr)
+            log.debug("Discovered device %s", dev.addr)
         elif isNewData:
-            log.info("Received new data from %s", dev.addr)
+            log.debug("Received new data from %s", dev.addr)
 
 
 class ProtoBle:
@@ -159,18 +159,18 @@ class MyDelegate(DefaultDelegate):
                 client.publish(topic, json.dumps(last_beat_msg))
         if sensorType == "Proto-Fever":
             try:
-                with open(DATA_PATH+FEVER_FILE, 'a') as f:
-                    writer = csv.writer(f, delimiter=',')
-                    now = time.time()
-                    data_formatted = float(data_decoded)
-                    msg_formatted = [now, data_formatted]
-                    writer.writerow(msg_formatted)
-                    fever_msg = {'data': data_formatted, 'timestamp': now}
-                    topic = "fever/reply/meas"
-                    log.info("MQTT: publishing message to topic %s", topic)
-                    client.publish(topic, json.dumps(fever_msg))
-                    ProtoDevice.disconnect()
-                    ProtoDevice = None
+                now = time.time()
+                data_formatted = float(data_decoded)
+                # with open(DATA_PATH+FEVER_FILE, 'a') as f:
+                    # writer = csv.writer(f, delimiter=',')
+                    # msg_formatted = [now, data_formatted]
+                    # writer.writerow(msg_formatted)
+                fever_msg = {'data': data_formatted, 'timestamp': now}
+                topic = "fever/reply/meas"
+                log.info("MQTT: publishing message to topic %s", topic)
+                client.publish(topic, json.dumps(fever_msg))
+                ProtoDevice.disconnect()
+                ProtoDevice = None
             except Exception as e: 
                 log.error(e)
 
@@ -182,9 +182,9 @@ class MyDelegate(DefaultDelegate):
 def detectProtos(devices):
     global sensorType
     for dev in devices:
-        log.info("Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi))
+        log.debug("Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi))
         for (adtype, desc, value) in dev.getScanData():
-            log.info("  %s = %s" % (desc, value))
+            log.debug("  %s = %s" % (desc, value))
             if desc == "Complete Local Name":
                 if value == "Proto-Fever" or value == "Proto-Light" or value == "Proto-Beat":
                     sensorType = value
@@ -193,17 +193,17 @@ def detectProtos(devices):
                     device.setDelegate(MyDelegate())
                     ble_device = ProtoBle(dev.addr, value, device.getServices())
                     for svc in ble_device.services:
-                        log.info(svc)
+                        log.debug(svc)
                     bleSensor = UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
                     bleService = device.getServiceByUUID(bleSensor)
                     bleChar = bleService.getCharacteristics()
                     for ch in bleChar:
-                        log.info('Properties: %s', ch.propertiesToString())
-                    log.info('Read: %s', bleChar[0].read())
+                        log.debug('Properties: %s', ch.propertiesToString())
+                    log.debug('Read: %s', bleChar[0].read())
                     device.writeCharacteristic(bleChar[0].valHandle+1, bytes.fromhex("0100"))
                     bleChar[1].write(bytes.fromhex("3130"))
                     # device.writeCharacteristic(bleChar[1].valHandle+1, bytes.fromhex("3130"))
-                    log.info("\n\n")
+                    log.debug("\n\n")
                     
                     return device
     return None
