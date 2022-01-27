@@ -34,20 +34,6 @@
 using namespace std;
 
 
-/* ##########################
-    Bluetooth Low Energy
-  ###########################*/
-BLEServer *pServer = NULL;
-BLECharacteristic * pTxCharacteristic;
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
-uint8_t txValue = 0;
-bool AFE_int = false;
-#define MAX_SAMPLES 4096
-uint32_t setSamples = 10;
-time_t startTime;
-TickType_t xStartTime, xSamplingTime;
-
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 
@@ -55,6 +41,34 @@ TickType_t xStartTime, xSamplingTime;
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
+#define MAX_SAMPLES             256
+#define INTERVAL_END_ARRAY      500
+#define INTERVAL_SAMPLE         25
+#define INTERVAL_BLE            50
+
+bool AFE_ReadEnable = false;
+int32_t measurement = 0;
+int32_t measurements[MAX_SAMPLES];
+int32_t BLEBufferMeasurements[MAX_SAMPLES];
+uint32_t BLEBufferTimestamps[MAX_SAMPLES];
+
+uint32_t setSamples = 10;           // Set of samples that are buffered (configurable)
+uint8_t  sample_cnt = 0;            // Counter for measurement readings
+uint8_t  data_cnt = 0;              // Counter for BLE data sending
+uint32_t timestamps[MAX_SAMPLES];
+uint32_t timerEndArray = 0;
+uint32_t timerAuxEndArray = 0;
+uint32_t timerSampling = 0xFFFFFFFF - INTERVAL_SAMPLE; // millis();
+uint32_t timerBLE = 0xFFFFFFFF - INTERVAL_BLE; // 0;
+
+ProtoBeat_Sensor beatSensor;
+
+BLEServer *pServer = NULL;
+BLECharacteristic * pTxCharacteristic;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+time_t startTime;
+TickType_t xStartTime, xSamplingTime;
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
@@ -69,7 +83,8 @@ class MyServerCallbacks: public BLEServerCallbacks {
 class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string rxValue = pCharacteristic->getValue();
-
+      Serial.println(rxValue.length());
+  
       if (rxValue.length() > 0) {
         Serial.print("Received Value: ");
         for (int i = 0; i < rxValue.length(); i++)
@@ -78,15 +93,21 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.println("");
         stringstream nSamples(rxValue);
         nSamples >> setSamples;
+        Serial.print("Sampling starting with ");
+        Serial.print(setSamples);
+        Serial.println(" samples");
         if (setSamples > 0){
-          AFE_int = true;
           time(&startTime);
           xStartTime = xTaskGetTickCount();
-          Serial.println("Sampling starting");
+          Serial.print("Sampling starting with ");
+          Serial.print(setSamples);
+          Serial.println(" samples");
           Serial.println(startTime);
           Serial.println(xStartTime);
+          AFE_ReadEnable = true;        // Enable the measurements reading
+          timerSampling = millis();     // Restart the measurement reading
         } else {
-          AFE_int = false;
+          AFE_ReadEnable = false;
         }
 
         Serial.println();
@@ -95,16 +116,12 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
-uint sample_cnt = 0;
-
-ProtoBeat_Sensor beatSensor;
-
-void IRAM_ATTR INThandler(void){
-  // Do not use Serial.prints inside interruption handlers
-    AFE_int = true;
-    //sample_cnt++;
-}
-
+// Interrupt is not being used
+//void IRAM_ATTR INThandler(void){
+//  // Do not use Serial.prints inside interruption handlers
+//    AFE_ReadEnable = true;
+//    //sample_cnt++;
+//}
 
 void systemStart(void){
     Serial.println("AFE Sensor Starting...");
@@ -114,39 +131,35 @@ void systemStart(void){
     Wire.begin();
 
     if (beatSensor.scanAvailableSensors()){
-        //attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
+        //attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);  // Interrupt is not being used
         beatSensor.AFEconfig();
     }
 }
 
+
 void setup() {
-  delay(1000);
   Serial.begin(9600);
+  delay(1000);
   Serial.println("\nWelcome to BLE Beat Sensor");
 
-  // Create the BLE Device
-  BLEDevice::init("Proto-Beat");
-
-  // Create the BLE Server
-  pServer = BLEDevice::createServer();
+  /* ##########################
+      Bluetooth Low Energy
+    ###########################*/
+  BLEDevice::init("Proto-Beat");                    // Create the BLE Device
+  pServer = BLEDevice::createServer();              // Create the BLE Server
   pServer->setCallbacks(new MyServerCallbacks());
-
-  // Create the BLE Service
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLEService *pService = pServer->createService(SERVICE_UUID);  // Create the BLE Service
 
   // Create a BLE Characteristic
   pTxCharacteristic = pService->createCharacteristic(
                     CHARACTERISTIC_UUID_TX,
                     BLECharacteristic::PROPERTY_NOTIFY
                   );
-                      
   pTxCharacteristic->addDescriptor(new BLE2902());
-
   BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
                        CHARACTERISTIC_UUID_RX,
                       BLECharacteristic::PROPERTY_WRITE
                     );
-
   pRxCharacteristic->setCallbacks(new MyCallbacks());
 
   // Start the service
@@ -160,86 +173,78 @@ void setup() {
       Heart Rate 5 click board
     ###########################*/
   systemStart();
-
 }
 
-int32_t measurement = 0;
-int32_t measurements[MAX_SAMPLES];
-int32_t timestamps[MAX_SAMPLES];
-#define INTERVAL_END_ARRAY  500
-#define INTERVAL_SAMPLE     25
-#define INTERVAL_BLE        50
-int32_t timerEndArray = 0;
-int32_t timerAuxEndArray = 0;
-int32_t timerSampling = millis();
-int32_t timerBLE = 0;
 
 
 void loop() {
-
-  if(millis() > timerSampling + INTERVAL_SAMPLE){
-    if (AFE_int){
-      Serial.println("Sampling...");
-      measurement = beatSensor.getMeasurement();
-      xSamplingTime = xTaskGetTickCount() - xStartTime;
+  uint32_t j = 0;
+  
+  // Timer for measurement reading
+  if (AFE_ReadEnable){
+    if(millis() > timerSampling + INTERVAL_SAMPLE){ 
+//      Serial.println("Reading Measurements...");
+      // AFE_ReadEnable = false;
+      measurement = beatSensor.getMeasurement();          // Read the measurement data
+      xSamplingTime = xTaskGetTickCount() - xStartTime;   // Establish the measurement timestamp
       measurements[sample_cnt] = measurement;
       timestamps[sample_cnt] = xSamplingTime;
       sample_cnt++;
-
       if (sample_cnt > setSamples){
-        Serial.println("Sampling End");
-        AFE_int = false;
+        Serial.println("All measurements were read");
         sample_cnt = 0;
-        timerSampling = 0;
-        timerBLE = millis();
+        AFE_ReadEnable = false;   // Stops to read measurements until next trigger
         if (deviceConnected) {
-          Serial.println("Sending buffer through BLE...");
+          Serial.println("Starting to send buffer through BLE...");
+          for (uint32_t i = 0; i < setSamples; i++) {
+            BLEBufferMeasurements[i] = measurements[i];
+            BLEBufferTimestamps[i] = timestamps[i];
+          }
+          timerBLE = 0;           // Enable the BLE transmission
         }
+      }
+      timerSampling = millis();   // Restart the measurement reading
+    }
+  }
+
+  // Timer to not overload the BLE communication
+  if (deviceConnected) {
+    if(millis() > timerBLE + INTERVAL_BLE){
+      if (data_cnt == setSamples){
+        pTxCharacteristic->setValue("endArray");
+        pTxCharacteristic->notify();
+        Serial.println("Buffer sent");
+        data_cnt = 0;
+        timerBLE = 0xFFFFFFFF - INTERVAL_BLE;   // Stop data transfer
+        AFE_ReadEnable = true;                  // Enable new measurements reading
+//        timerEndArray = millis();
+//        timerAuxEndArray = millis();
       } else {
-        timerSampling = millis();
+//        Serial.println("Sending data...");
+        std::stringstream stream;
+        stream << std::fixed << std::setprecision(2) << BLEBufferMeasurements[data_cnt];
+        stream << "/";
+        stream << std::fixed << std::setprecision(2) << BLEBufferTimestamps[data_cnt];
+        std::string s = stream.str();
+        pTxCharacteristic->setValue(s);
+        pTxCharacteristic->notify();
+        data_cnt++;
+        timerBLE = millis();
       }
     }
   }
 
-  if(millis() > timerBLE + INTERVAL_BLE){
-    if (deviceConnected) {
-      if (timerSampling == 0 and timerEndArray == 0){
-        if (sample_cnt == setSamples){
-          pTxCharacteristic->setValue("endArray");
-          pTxCharacteristic->notify();
-          Serial.println("Buffer sent");
-          sample_cnt = 0;
-          timerBLE = 0;
-//          AFE_int = true;
-//          timerSampling = millis();
-          timerEndArray = millis();
-          timerAuxEndArray = millis();
-        } else {
-          Serial.println("Sending data...");
-          std::stringstream stream;
-          stream << std::fixed << std::setprecision(2) << measurements[sample_cnt];
-          stream << "/";
-          stream << std::fixed << std::setprecision(2) << timestamps[sample_cnt];
-          std::string s = stream.str();
-          pTxCharacteristic->setValue(s);
-          pTxCharacteristic->notify();
-          sample_cnt++;
-          timerBLE = millis();
-        }
-      }
-    }
-  }
-
-  if(millis() < timerEndArray + INTERVAL_END_ARRAY){
-    timerAuxEndArray = millis();
-  } else {
-    if (timerAuxEndArray > 0){
-      timerEndArray = 0;
-      timerAuxEndArray = 0;
-      AFE_int = true;
-      timerSampling = millis();
-    }
-  }
+//  // Timer to wait al
+//  if(millis() < timerEndArray + INTERVAL_END_ARRAY){
+//    timerAuxEndArray = millis();
+//  } else {
+//    if (timerAuxEndArray > 0){
+//      timerEndArray = 0;
+//      timerAuxEndArray = 0;
+//      AFE_ReadEnable = true;
+//      timerSampling = millis();
+//    }
+//  }
 
 
   // BLE routines

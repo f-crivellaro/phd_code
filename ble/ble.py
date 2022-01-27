@@ -65,7 +65,7 @@ def measure_request(client, userdata, message):
     client.publish(topic, json.dumps(last_msg))
 
 last_beat_msg = {}
-samples = 100
+samples = "" #100
 sendSamples = False
 
 def beat_request(client, userdata, message):
@@ -201,7 +201,9 @@ def detectProtos(devices):
                         log.debug('Properties: %s', ch.propertiesToString())
                     log.debug('Read: %s', bleChar[0].read())
                     device.writeCharacteristic(bleChar[0].valHandle+1, bytes.fromhex("0100"))
-                    bleChar[1].write(bytes.fromhex("3130"))
+                    # bleChar[1].write(bytes.fromhex("0a"))
+                    bleChar[1].write(bytes("9", 'ascii'))
+                    # bleChar[1].write(bytes([0x0f]))
                     # device.writeCharacteristic(bleChar[1].valHandle+1, bytes.fromhex("3130"))
                     log.debug("\n\n")
                     
@@ -223,7 +225,10 @@ while True:
                 bleSensor = UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
                 bleService = ProtoDevice.getServiceByUUID(bleSensor)
                 bleChar = bleService.getCharacteristics()
-                bleChar[1].write(str(samples).encode())
+                # bleChar[1].write(str(samples).encode())
+                # bleChar[1].write(bytes([samples]))
+                bleChar[1].write(bytes(str(samples), 'ascii'))
+                # bleChar[1].write(bytes.fromhex(samples))
                 sendSamples = False
         else:
             log.info("BLE Scanning for ProtoDevices")
