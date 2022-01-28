@@ -9,6 +9,7 @@ from bluepy.btle import Scanner, DefaultDelegate, Peripheral, UUID
 import time
 import csv
 from datetime import datetime
+from scipy import signal
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -48,7 +49,7 @@ client = mqtt.Client("Proto-PC")
 log.info("MQTT: connecting to broker - %s", broker_address)
 client.connect(broker_address)
 topic_cmd = "spec/cmd/meas"
-topic_beat = "wipy/command"
+topic_beat = "protobeat/command"
 topic_fever = "fever/command"
 log.info("Subscribing to topic %s" %topic_cmd)
 log.info("Subscribing to topic %s" %topic_beat)
@@ -112,13 +113,16 @@ class MyDelegate(DefaultDelegate):
     def __init__(self):
         DefaultDelegate.__init__(self)
         self._beat_array = []
+        self._beat_array_red = []
+        self._beat_array_ir = []
+        self._beat_array_amb = []
         self._beat_timestamps = []
         self._beat_start = None
 
     def handleNotification(self, cHandle, data):
         global last_msg, last_beat_msg, sensorType, ProtoDevice
         data_decoded = data.decode("utf-8")
-        log.info("A notification was received: %s", data_decoded)
+        # log.info("A notification was received: %s", data_decoded)
         if sensorType == "Proto-Light":
             measures = data_decoded
             measures_splitted = measures.split('/')
@@ -147,16 +151,40 @@ class MyDelegate(DefaultDelegate):
                     self._beat_timestamps.append(measures_formatted[1]-self._beat_start)
 
                 self._beat_array.append(measures_formatted[0])
+                self._beat_array_red.append(measures_formatted[2])
+                self._beat_array_ir.append(measures_formatted[3])
+                self._beat_array_amb.append(measures_formatted[4])
             else:
-                log.debug('Proto-Beat ready to be sent')
+                log.info('Proto-Beat ready to be sent')
                 msg = {'series': ['PPG'], 'data': [self._beat_array], 'labels': self._beat_timestamps}
                 last_beat_msg = msg
+                topic = "protobeat/reply/green"
+                # log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
+                client.publish(topic, json.dumps(last_beat_msg))
+                # hp_sos = signal.butter(3, 0.05, 'hp', fs=15, output='sos')
+                # hp_filtered = signal.sosfilt(hp_sos, self._beat_array)
+                msg = {'series': ['PPG'], 'data': [self._beat_array_red], 'labels': self._beat_timestamps}
+                last_beat_msg = msg
+                topic = "protobeat/reply/red"
+                client.publish(topic, json.dumps(last_beat_msg))
+                msg = {'series': ['PPG'], 'data': [self._beat_array_ir], 'labels': self._beat_timestamps}
+                last_beat_msg = msg
+                topic = "protobeat/reply/ir"
+                client.publish(topic, json.dumps(last_beat_msg))
+                msg = {'series': ['PPG'], 'data': [self._beat_array_amb], 'labels': self._beat_timestamps}
+                last_beat_msg = msg
+                topic = "protobeat/reply/ambient"
+                client.publish(topic, json.dumps(last_beat_msg))
+                # sos = signal.butter(6, 40, 'lp', fs=1000, output='sos')
+                # filtered = signal.sosfilt(sos, hp_filtered)
+                # msg = {'series': ['PPG'], 'data': [filtered.tolist()], 'labels': self._beat_timestamps}
+                # last_beat_msg = msg
+                # topic = "wipy/reply/filtered"
+                # client.publish(topic, json.dumps(last_beat_msg))
                 self._beat_timestamps = []
                 self._beat_array = []
+                self._beat_array_red = []
                 self._beat_start = None
-                topic = "wipy/reply"
-                log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
-                client.publish(topic, json.dumps(last_beat_msg))
         if sensorType == "Proto-Fever":
             try:
                 now = time.time()

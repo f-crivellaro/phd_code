@@ -64,32 +64,33 @@ uint32_t ProtoBeat_Sensor::AFEread(uint8_t RDaddr){
 
 void ProtoBeat_Sensor::AFEconfig(void){
     Serial.println("Enabling Register write mode");
-    AFEwrite(0x00, 0);
+    AFEwrite(0x00, 0);          // Registers in write mode
     Serial.println("Enable internal oscillator (4 MHz)");
-    AFEwrite(0x23, 131584);
+    AFEwrite(0x23, 131584);     
     // AFEwrite(0x23, 131586);
     Serial.println("Enable the readout of write registers");
-    AFEwrite(0x00, 1);
+    AFEwrite(0x00, 1);          // Registers in read mode
     Serial.println("Read Addr 0x23 to check OSC_ENABLE (bit 9)");
     Serial.println(AFEread(0x23));
     Serial.println("AFE Final config started");
-    AFEwrite(0x00, 0);
-    AFEwrite(0x39, 0);
-    AFEwrite(0x1D, 39999);
-    AFEwrite(0x09, 0);
-    AFEwrite(0x0A, 398);
-    AFEwrite(0x01, 100);
-    AFEwrite(0x02, 398);
-    AFEwrite(0x15, 5600);
-    AFEwrite(0x16, 5606);
-    AFEwrite(0x0D, 5608);
-    AFEwrite(0x0E, 6067);
-    AFEwrite(0x36, 400);
-    AFEwrite(0x37, 798);
-    AFEwrite(0x05, 500);
-    AFEwrite(0x06, 798);
-    AFEwrite(0x17, 6069);
-    AFEwrite(0x18, 6075);
+    AFEwrite(0x00, 0);          // Registers in write mode
+    // The configuration below is from Table 12 (pg. 28 of AFE4404 datasheet) for a 10 ms cycle with Three LEDs each with a duty cycle of 1 %, corresponding to a pulse duration of 100 us and four averages
+    AFEwrite(0x39, 0);          // Definition of Pulse Repetition Frequency (PRF) Led On Freq 61 Hz minimum
+    AFEwrite(0x1D, 39999);      // PRPCT PRF Counter for 100 Hz (CLK 4 MHz)
+    AFEwrite(0x09, 0);          // LED2LEDSTC
+    AFEwrite(0x0A, 398);        // LED2LEDENDC
+    AFEwrite(0x01, 100);        // LED2STC
+    AFEwrite(0x02, 398);        // LED2ENDC
+    AFEwrite(0x15, 5600);       // ADCRSTSTCT0
+    AFEwrite(0x16, 5606);       // ADCRSTENDCT0
+    AFEwrite(0x0D, 5608);       // LED2CONVST
+    AFEwrite(0x0E, 6067);       // LED2CONVEND
+    AFEwrite(0x36, 400);        // LED3LEDSTC
+    AFEwrite(0x37, 798);        // LED3LEDENDC
+    AFEwrite(0x05, 500);        // ALED2STC / LED3STC
+    AFEwrite(0x06, 798);        // ALED2ENDC / LED3ENDC
+    AFEwrite(0x17, 6069);       // ADCRSTSTCT1
+    AFEwrite(0x18, 6075);       // ADCRSTENDCT1
     AFEwrite(0x0F, 6077);
     AFEwrite(0x10, 6536);
     AFEwrite(0x03, 800);
@@ -109,13 +110,13 @@ void ProtoBeat_Sensor::AFEconfig(void){
     AFEwrite(0x32, 7675);
     AFEwrite(0x33, 39199);
 
-    AFEwrite(0x1E, 258);
-    AFEwrite(0x20, 32772);
-    AFEwrite(0x21, 3);
-    AFEwrite(0x22, 12495);
+    AFEwrite(0x1E, 258);        // ADC averages = 4 
+    AFEwrite(0x20, 32772);      // Configuration of the transimpedance amplifier
+    AFEwrite(0x21, 2);          // Configuration of the transimpedance amplifier
+    AFEwrite(0x22, 10425);     // 20 mA in all LEDs - 104025)
 
     Serial.println("Enable the readout of write registers");
-    AFEwrite(0x00, 1);
+    AFEwrite(0x00, 1);          // Registers in read mode
     Serial.println("AFE Final config ended");
 }
 
@@ -130,14 +131,38 @@ void ProtoBeat_Sensor::reset(void){
 }
 
 
-int32_t ProtoBeat_Sensor::getMeasurement(void){
+int32_t ProtoBeat_Sensor::getMeasurement(uint8_t selector){
+    uint32_t led_data = 0;
+    uint32_t ambient_data = 0;
     uint32_t data = 0;
-    data = AFEread(0x2F);
+
+    switch(selector) {
+        case GREEN_LED: // LED1-AMBIENT
+            data = AFEread(0x2F);
+        break;
+        case RED_LED:   // LED2VAL
+            led_data = AFEread(0x2A);
+            ambient_data = AFEread(0x2D);
+            data = led_data - ambient_data;
+        break;
+        case IR_LED:    // LED3VAL
+            data = AFEread(0x2B);
+            ambient_data = AFEread(0x2D);
+            data = led_data - ambient_data;
+        break;
+        case AMBIENT:   // ALED1VAL
+            data = AFEread(0x2D);
+        break;
+        default:
+            data = AFEread(0x2D);
+    }
+
     if (data > 0x1FFFFF){
         return (int32_t) (-1) * (0xFFFFFF - data + 1);
     } else {
         return (int32_t) data;
     }
-
 }
+
+
 

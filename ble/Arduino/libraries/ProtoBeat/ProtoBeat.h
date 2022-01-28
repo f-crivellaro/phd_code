@@ -9,12 +9,17 @@
 #define RESET_STBY_GPIO    33
 #define ADC_RDY_INT_GPIO   35
 
+#define GREEN_LED           1
+#define RED_LED             2
+#define IR_LED              3
+#define AMBIENT             4
+
 class ProtoBeat_Sensor {
     public:
         int32_t last_measurement = 0;                // Last sensor measurement
         // void    shutdown(void);                   // Instructs device to power-save
         void        reset(void);
-        int32_t     getMeasurement(void);
+        int32_t     getMeasurement(uint8_t selector);
         bool        scanAvailableSensors(void);
         uint32_t    AFEread(uint8_t RDaddr);
         void        AFEconfig(void);

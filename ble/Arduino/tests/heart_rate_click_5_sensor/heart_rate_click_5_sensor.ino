@@ -41,20 +41,29 @@ using namespace std;
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
-#define MAX_SAMPLES             256
+#define MAX_SAMPLES             1024
 #define INTERVAL_END_ARRAY      500
-#define INTERVAL_SAMPLE         25
+#define INTERVAL_SAMPLE         15
 #define INTERVAL_BLE            50
 
 bool AFE_ReadEnable = false;
 int32_t measurement = 0;
 int32_t measurements[MAX_SAMPLES];
+int32_t redMeasurement = 0;
+int32_t redMeasurements[MAX_SAMPLES];
+int32_t irMeasurement = 0;
+int32_t irMeasurements[MAX_SAMPLES];
+int32_t ambMeasurement = 0;
+int32_t ambMeasurements[MAX_SAMPLES];
 int32_t BLEBufferMeasurements[MAX_SAMPLES];
+int32_t BLEBufferRedMeasurements[MAX_SAMPLES];
+int32_t BLEBufferIrMeasurements[MAX_SAMPLES];
+int32_t BLEBufferAmbMeasurements[MAX_SAMPLES];
 uint32_t BLEBufferTimestamps[MAX_SAMPLES];
 
 uint32_t setSamples = 10;           // Set of samples that are buffered (configurable)
-uint8_t  sample_cnt = 0;            // Counter for measurement readings
-uint8_t  data_cnt = 0;              // Counter for BLE data sending
+uint32_t sample_cnt = 0;            // Counter for measurement readings
+uint32_t data_cnt = 0;              // Counter for BLE data sending
 uint32_t timestamps[MAX_SAMPLES];
 uint32_t timerEndArray = 0;
 uint32_t timerAuxEndArray = 0;
@@ -106,6 +115,9 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           Serial.println(xStartTime);
           AFE_ReadEnable = true;        // Enable the measurements reading
           timerSampling = millis();     // Restart the measurement reading
+          sample_cnt = 0;
+          data_cnt = 0;
+          timerBLE = 0xFFFFFFFF - INTERVAL_BLE;   // Stop data transfer
         } else {
           AFE_ReadEnable = false;
         }
@@ -178,16 +190,20 @@ void setup() {
 
 
 void loop() {
-  uint32_t j = 0;
   
   // Timer for measurement reading
   if (AFE_ReadEnable){
     if(millis() > timerSampling + INTERVAL_SAMPLE){ 
 //      Serial.println("Reading Measurements...");
-      // AFE_ReadEnable = false;
-      measurement = beatSensor.getMeasurement();          // Read the measurement data
-      xSamplingTime = xTaskGetTickCount() - xStartTime;   // Establish the measurement timestamp
+      measurement = beatSensor.getMeasurement(GREEN_LED); // Read the measurement data
       measurements[sample_cnt] = measurement;
+      redMeasurement = beatSensor.getMeasurement(RED_LED);// Read the measurement data
+      redMeasurements[sample_cnt] = redMeasurement;
+      irMeasurement = beatSensor.getMeasurement(IR_LED);// Read the measurement data
+      irMeasurements[sample_cnt] = irMeasurement;
+      ambMeasurement = beatSensor.getMeasurement(AMBIENT);// Read the measurement data
+      ambMeasurements[sample_cnt] = ambMeasurement;
+      xSamplingTime = xTaskGetTickCount() - xStartTime;   // Establish the measurement timestamp
       timestamps[sample_cnt] = xSamplingTime;
       sample_cnt++;
       if (sample_cnt > setSamples){
@@ -198,6 +214,9 @@ void loop() {
           Serial.println("Starting to send buffer through BLE...");
           for (uint32_t i = 0; i < setSamples; i++) {
             BLEBufferMeasurements[i] = measurements[i];
+            BLEBufferRedMeasurements[i] = redMeasurements[i];
+            BLEBufferIrMeasurements[i] = irMeasurements[i];
+            BLEBufferAmbMeasurements[i] = ambMeasurements[i];
             BLEBufferTimestamps[i] = timestamps[i];
           }
           timerBLE = 0;           // Enable the BLE transmission
@@ -225,9 +244,17 @@ void loop() {
         stream << std::fixed << std::setprecision(2) << BLEBufferMeasurements[data_cnt];
         stream << "/";
         stream << std::fixed << std::setprecision(2) << BLEBufferTimestamps[data_cnt];
+        stream << "/";
+        stream << std::fixed << std::setprecision(2) << BLEBufferRedMeasurements[data_cnt];
+        stream << "/";
+        stream << std::fixed << std::setprecision(2) << BLEBufferIrMeasurements[data_cnt];
+        stream << "/";
+        stream << std::fixed << std::setprecision(2) << BLEBufferAmbMeasurements[data_cnt];
         std::string s = stream.str();
         pTxCharacteristic->setValue(s);
         pTxCharacteristic->notify();
+//        Serial.print("Size of transfer: ");
+//        Serial.println(sizeof(s));
         data_cnt++;
         timerBLE = millis();
       }
