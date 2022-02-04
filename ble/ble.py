@@ -10,6 +10,7 @@ import time
 import csv
 from datetime import datetime
 from scipy import signal
+import statistics
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -114,8 +115,8 @@ class MyDelegate(DefaultDelegate):
         DefaultDelegate.__init__(self)
         self._beat_array = []
         self._beat_array_red = []
-        self._beat_array_ir = []
-        self._beat_array_amb = []
+        self._beat_array_amb1 = []
+        self._beat_array_amb2 = []
         self._beat_timestamps = []
         self._beat_start = None
 
@@ -152,39 +153,45 @@ class MyDelegate(DefaultDelegate):
 
                 self._beat_array.append(measures_formatted[0])
                 self._beat_array_red.append(measures_formatted[2])
-                self._beat_array_ir.append(measures_formatted[3])
-                self._beat_array_amb.append(measures_formatted[4])
+                self._beat_array_amb1.append(measures_formatted[3])
+                self._beat_array_amb2.append(measures_formatted[4])
             else:
-                log.info('Proto-Beat ready to be sent')
-                msg = {'series': ['PPG'], 'data': [self._beat_array], 'labels': self._beat_timestamps}
-                last_beat_msg = msg
-                topic = "protobeat/reply/green"
-                # log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
-                client.publish(topic, json.dumps(last_beat_msg))
-                # hp_sos = signal.butter(3, 0.05, 'hp', fs=15, output='sos')
-                # hp_filtered = signal.sosfilt(hp_sos, self._beat_array)
-                msg = {'series': ['PPG'], 'data': [self._beat_array_red], 'labels': self._beat_timestamps}
-                last_beat_msg = msg
-                topic = "protobeat/reply/red"
-                client.publish(topic, json.dumps(last_beat_msg))
-                msg = {'series': ['PPG'], 'data': [self._beat_array_ir], 'labels': self._beat_timestamps}
-                last_beat_msg = msg
-                topic = "protobeat/reply/ir"
-                client.publish(topic, json.dumps(last_beat_msg))
-                msg = {'series': ['PPG'], 'data': [self._beat_array_amb], 'labels': self._beat_timestamps}
-                last_beat_msg = msg
-                topic = "protobeat/reply/ambient"
-                client.publish(topic, json.dumps(last_beat_msg))
-                # sos = signal.butter(6, 40, 'lp', fs=1000, output='sos')
-                # filtered = signal.sosfilt(sos, hp_filtered)
-                # msg = {'series': ['PPG'], 'data': [filtered.tolist()], 'labels': self._beat_timestamps}
-                # last_beat_msg = msg
-                # topic = "wipy/reply/filtered"
-                # client.publish(topic, json.dumps(last_beat_msg))
-                self._beat_timestamps = []
-                self._beat_array = []
-                self._beat_array_red = []
-                self._beat_start = None
+                if (len(self._beat_array) > 0):
+                    log.info('Proto-Beat ready to be sent')
+                    greenMeas = [int(a - statistics.mean(self._beat_array)) for a in self._beat_array]
+                    msg = {'series': ['PPG'], 'data': [self._beat_array], 'labels': self._beat_timestamps}
+                    last_beat_msg = msg
+                    topic = "protobeat/reply/green"
+                    # log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
+                    client.publish(topic, json.dumps(last_beat_msg))
+                    # hp_sos = signal.butter(3, 0.05, 'hp', fs=15, output='sos')
+                    # hp_filtered = signal.sosfilt(hp_sos, self._beat_array)
+                    redMeas = [int(a - statistics.mean(self._beat_array_red)) for a in self._beat_array_red]
+                    msg = {'series': ['PPG'], 'data': [self._beat_array_red], 'labels': self._beat_timestamps}
+                    last_beat_msg = msg
+                    topic = "protobeat/reply/red"
+                    client.publish(topic, json.dumps(last_beat_msg))
+                    msg = {'series': ['PPG'], 'data': [self._beat_array_amb1], 'labels': self._beat_timestamps}
+                    last_beat_msg = msg
+                    topic = "protobeat/reply/ambient1"
+                    client.publish(topic, json.dumps(last_beat_msg))
+                    msg = {'series': ['PPG'], 'data': [self._beat_array_amb2], 'labels': self._beat_timestamps}
+                    last_beat_msg = msg
+                    topic = "protobeat/reply/ambient2"
+                    client.publish(topic, json.dumps(last_beat_msg))
+                    # sos = signal.butter(3, 0.2, 'lp', fs=None, output='sos')
+                    # filtered = signal.sosfilt(sos, greenMeas)
+                    # clean_samples = 100
+                    # msg = {'series': ['PPG'], 'data': [filtered[clean_samples:].tolist()], 'labels': self._beat_timestamps[clean_samples:]}
+                    # last_beat_msg = msg
+                    # topic = "protobeat/reply/green/filter"
+                    # client.publish(topic, json.dumps(last_beat_msg))
+                    self._beat_timestamps = []
+                    self._beat_array = []
+                    self._beat_array_red = []
+                    self._beat_array_amb1 = []
+                    self._beat_array_amb2 = []
+                    self._beat_start = None
         if sensorType == "Proto-Fever":
             try:
                 now = time.time()
@@ -230,7 +237,7 @@ def detectProtos(devices):
                     log.debug('Read: %s', bleChar[0].read())
                     device.writeCharacteristic(bleChar[0].valHandle+1, bytes.fromhex("0100"))
                     # bleChar[1].write(bytes.fromhex("0a"))
-                    bleChar[1].write(bytes("9", 'ascii'))
+                    bleChar[1].write(bytes("50", 'ascii'))
                     # bleChar[1].write(bytes([0x0f]))
                     # device.writeCharacteristic(bleChar[1].valHandle+1, bytes.fromhex("3130"))
                     log.debug("\n\n")

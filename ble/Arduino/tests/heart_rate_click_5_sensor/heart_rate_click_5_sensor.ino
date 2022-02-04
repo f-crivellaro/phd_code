@@ -16,6 +16,9 @@
    And txValue is the data to be sent, in this example just a byte incremented every second. 
 */
 
+#include <WiFi.h>
+#include <PubSubClient.h>
+
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -44,21 +47,28 @@ using namespace std;
 #define MAX_SAMPLES             1024
 #define INTERVAL_END_ARRAY      500
 #define INTERVAL_SAMPLE         15
-#define INTERVAL_BLE            50
+#define INTERVAL_BLE            10
+
+#define WIFI_COM
+
+#ifdef WIFI_COM
+  const char* ssid = "Smart Devices";
+  const char* password = "Compta202004";
+#endif
 
 bool AFE_ReadEnable = false;
 int32_t measurement = 0;
 int32_t measurements[MAX_SAMPLES];
 int32_t redMeasurement = 0;
 int32_t redMeasurements[MAX_SAMPLES];
-int32_t irMeasurement = 0;
-int32_t irMeasurements[MAX_SAMPLES];
-int32_t ambMeasurement = 0;
-int32_t ambMeasurements[MAX_SAMPLES];
+int32_t amb1Measurement = 0;
+int32_t amb1Measurements[MAX_SAMPLES];
+int32_t amb2Measurement = 0;
+int32_t amb2Measurements[MAX_SAMPLES];
 int32_t BLEBufferMeasurements[MAX_SAMPLES];
 int32_t BLEBufferRedMeasurements[MAX_SAMPLES];
-int32_t BLEBufferIrMeasurements[MAX_SAMPLES];
-int32_t BLEBufferAmbMeasurements[MAX_SAMPLES];
+int32_t BLEBufferAmb1Measurements[MAX_SAMPLES];
+int32_t BLEBufferAmb2Measurements[MAX_SAMPLES];
 uint32_t BLEBufferTimestamps[MAX_SAMPLES];
 
 uint32_t setSamples = 10;           // Set of samples that are buffered (configurable)
@@ -199,10 +209,10 @@ void loop() {
       measurements[sample_cnt] = measurement;
       redMeasurement = beatSensor.getMeasurement(RED_LED);// Read the measurement data
       redMeasurements[sample_cnt] = redMeasurement;
-      irMeasurement = beatSensor.getMeasurement(IR_LED);// Read the measurement data
-      irMeasurements[sample_cnt] = irMeasurement;
-      ambMeasurement = beatSensor.getMeasurement(AMBIENT);// Read the measurement data
-      ambMeasurements[sample_cnt] = ambMeasurement;
+      amb1Measurement = beatSensor.getMeasurement(AMBIENT_1);// Read the measurement data
+      amb1Measurements[sample_cnt] = amb1Measurement;
+      amb2Measurement = beatSensor.getMeasurement(AMBIENT_2);// Read the measurement data
+      amb2Measurements[sample_cnt] = amb2Measurement;
       xSamplingTime = xTaskGetTickCount() - xStartTime;   // Establish the measurement timestamp
       timestamps[sample_cnt] = xSamplingTime;
       sample_cnt++;
@@ -215,8 +225,8 @@ void loop() {
           for (uint32_t i = 0; i < setSamples; i++) {
             BLEBufferMeasurements[i] = measurements[i];
             BLEBufferRedMeasurements[i] = redMeasurements[i];
-            BLEBufferIrMeasurements[i] = irMeasurements[i];
-            BLEBufferAmbMeasurements[i] = ambMeasurements[i];
+            BLEBufferAmb1Measurements[i] = amb1Measurements[i];
+            BLEBufferAmb2Measurements[i] = amb2Measurements[i];
             BLEBufferTimestamps[i] = timestamps[i];
           }
           timerBLE = 0;           // Enable the BLE transmission
@@ -247,9 +257,9 @@ void loop() {
         stream << "/";
         stream << std::fixed << std::setprecision(2) << BLEBufferRedMeasurements[data_cnt];
         stream << "/";
-        stream << std::fixed << std::setprecision(2) << BLEBufferIrMeasurements[data_cnt];
+        stream << std::fixed << std::setprecision(2) << BLEBufferAmb1Measurements[data_cnt];
         stream << "/";
-        stream << std::fixed << std::setprecision(2) << BLEBufferAmbMeasurements[data_cnt];
+        stream << std::fixed << std::setprecision(2) << BLEBufferAmb2Measurements[data_cnt];
         std::string s = stream.str();
         pTxCharacteristic->setValue(s);
         pTxCharacteristic->notify();

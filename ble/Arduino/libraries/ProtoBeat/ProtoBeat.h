@@ -12,7 +12,8 @@
 #define GREEN_LED           1
 #define RED_LED             2
 #define IR_LED              3
-#define AMBIENT             4
+#define AMBIENT_1           4
+#define AMBIENT_2           5
 
 class ProtoBeat_Sensor {
     public:
