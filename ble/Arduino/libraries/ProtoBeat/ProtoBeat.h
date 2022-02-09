@@ -6,8 +6,8 @@
 #define I2C_DATA_LENGTH    3    // Number of bytes expected in I2C data
 #define I2C_AFE_ADDRESS    0x58 // AFE I2C address
 
-#define RESET_STBY_GPIO    33
-#define ADC_RDY_INT_GPIO   35
+#define RESET_STBY_GPIO    16
+#define ADC_RDY_INT_GPIO   18
 
 #define GREEN_LED           1
 #define RED_LED             2
@@ -24,6 +24,7 @@ class ProtoBeat_Sensor {
         bool        scanAvailableSensors(void);
         uint32_t    AFEread(uint8_t RDaddr);
         void        AFEconfig(void);
+        void        powerdown(void);
 
     private:
         void        AFEwrite(uint8_t WRaddr, uint32_t WRdata);

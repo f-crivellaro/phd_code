@@ -71,7 +71,7 @@ int32_t BLEBufferAmb1Measurements[MAX_SAMPLES];
 int32_t BLEBufferAmb2Measurements[MAX_SAMPLES];
 uint32_t BLEBufferTimestamps[MAX_SAMPLES];
 
-uint32_t setSamples = 10;           // Set of samples that are buffered (configurable)
+uint32_t setSamples = 100;           // Set of samples that are buffered (configurable)
 uint32_t sample_cnt = 0;            // Counter for measurement readings
 uint32_t data_cnt = 0;              // Counter for BLE data sending
 uint32_t timestamps[MAX_SAMPLES];
@@ -88,6 +88,12 @@ bool deviceConnected = false;
 bool oldDeviceConnected = false;
 time_t startTime;
 TickType_t xStartTime, xSamplingTime;
+
+void IRAM_ATTR INThandler(void){
+  // Do not use Serial.prints inside interruption handlers
+    AFE_ReadEnable = true;
+    //sample_cnt++;
+}
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
@@ -116,6 +122,10 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.print(setSamples);
         Serial.println(" samples");
         if (setSamples > 0){
+           detachInterrupt(ADC_RDY_INT_GPIO);
+          AFE_ReadEnable = false;   // Stops to read measurements until next trigger
+          beatSensor.reset();
+          beatSensor.AFEconfig();
           time(&startTime);
           xStartTime = xTaskGetTickCount();
           Serial.print("Sampling starting with ");
@@ -123,13 +133,13 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           Serial.println(" samples");
           Serial.println(startTime);
           Serial.println(xStartTime);
-          AFE_ReadEnable = true;        // Enable the measurements reading
-          timerSampling = millis();     // Restart the measurement reading
+          attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
+//          timerSampling = millis();     // Restart the measurement reading
           sample_cnt = 0;
           data_cnt = 0;
           timerBLE = 0xFFFFFFFF - INTERVAL_BLE;   // Stop data transfer
         } else {
-          AFE_ReadEnable = false;
+//          AFE_ReadEnable = false;
         }
 
         Serial.println();
@@ -138,23 +148,19 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
-// Interrupt is not being used
-//void IRAM_ATTR INThandler(void){
-//  // Do not use Serial.prints inside interruption handlers
-//    AFE_ReadEnable = true;
-//    //sample_cnt++;
-//}
+
 
 void systemStart(void){
-    Serial.println("AFE Sensor Starting...");
-    pinMode(RESET_STBY_GPIO, OUTPUT);
-    pinMode(ADC_RDY_INT_GPIO, INPUT);
-    beatSensor.reset();
     Wire.begin();
 
     if (beatSensor.scanAvailableSensors()){
-        //attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);  // Interrupt is not being used
-        beatSensor.AFEconfig();
+        Serial.println("Heart Rate Sensor found!");
+        pinMode(RESET_STBY_GPIO, OUTPUT);
+        pinMode(ADC_RDY_INT_GPIO, INPUT);
+        beatSensor.reset();
+        beatSensor.powerdown();
+//        attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
+//        beatSensor.AFEconfig();
     }
 }
 
@@ -203,7 +209,7 @@ void loop() {
   
   // Timer for measurement reading
   if (AFE_ReadEnable){
-    if(millis() > timerSampling + INTERVAL_SAMPLE){ 
+//    if(millis() > timerSampling + INTERVAL_SAMPLE){ 
 //      Serial.println("Reading Measurements...");
       measurement = beatSensor.getMeasurement(GREEN_LED); // Read the measurement data
       measurements[sample_cnt] = measurement;
@@ -214,12 +220,16 @@ void loop() {
       amb2Measurement = beatSensor.getMeasurement(AMBIENT_2);// Read the measurement data
       amb2Measurements[sample_cnt] = amb2Measurement;
       xSamplingTime = xTaskGetTickCount() - xStartTime;   // Establish the measurement timestamp
+//      Serial.println(xSamplingTime);
       timestamps[sample_cnt] = xSamplingTime;
+      AFE_ReadEnable = false;   // Stops to read measurements until next trigger
       sample_cnt++;
       if (sample_cnt > setSamples){
         Serial.println("All measurements were read");
         sample_cnt = 0;
+        detachInterrupt(ADC_RDY_INT_GPIO);
         AFE_ReadEnable = false;   // Stops to read measurements until next trigger
+        beatSensor.powerdown();
         if (deviceConnected) {
           Serial.println("Starting to send buffer through BLE...");
           for (uint32_t i = 0; i < setSamples; i++) {
@@ -233,7 +243,7 @@ void loop() {
         }
       }
       timerSampling = millis();   // Restart the measurement reading
-    }
+//    }
   }
 
   // Timer to not overload the BLE communication
@@ -245,7 +255,17 @@ void loop() {
         Serial.println("Buffer sent");
         data_cnt = 0;
         timerBLE = 0xFFFFFFFF - INTERVAL_BLE;   // Stop data transfer
-        AFE_ReadEnable = true;                  // Enable new measurements reading
+//        AFE_ReadEnable = true;                  // Enable new measurements reading
+        beatSensor.reset();
+        beatSensor.AFEconfig();
+        time(&startTime);
+        xStartTime = xTaskGetTickCount();
+        Serial.print("Sampling starting with ");
+        Serial.print(setSamples);
+        Serial.println(" samples");
+        Serial.println(startTime);
+        Serial.println(xStartTime);
+        attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
 //        timerEndArray = millis();
 //        timerAuxEndArray = millis();
       } else {
