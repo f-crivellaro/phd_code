@@ -160,6 +160,7 @@ class MyDelegate(DefaultDelegate):
                     log.info('Proto-Beat ready to be sent')
                     greenMeas = [int(a - statistics.mean(self._beat_array)) for a in self._beat_array]
                     msg = {'series': ['PPG'], 'data': [self._beat_array], 'labels': self._beat_timestamps}
+                    # msg = {'series': ['PPG'], 'data': [greenMeas], 'labels': self._beat_timestamps}
                     last_beat_msg = msg
                     topic = "protobeat/reply/green"
                     # log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
@@ -168,6 +169,7 @@ class MyDelegate(DefaultDelegate):
                     # hp_filtered = signal.sosfilt(hp_sos, self._beat_array)
                     redMeas = [int(a - statistics.mean(self._beat_array_red)) for a in self._beat_array_red]
                     msg = {'series': ['PPG'], 'data': [self._beat_array_red], 'labels': self._beat_timestamps}
+                    # msg = {'series': ['PPG'], 'data': [redMeas], 'labels': self._beat_timestamps}
                     last_beat_msg = msg
                     topic = "protobeat/reply/red"
                     client.publish(topic, json.dumps(last_beat_msg))

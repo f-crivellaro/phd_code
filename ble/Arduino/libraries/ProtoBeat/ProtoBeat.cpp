@@ -87,8 +87,8 @@ void ProtoBeat_Sensor::AFEconfig(void){
     AFEwrite(0x0D, 409);       // LED2CONVST - LED2 convert phase start
     AFEwrite(0x0E, 1468);       // LED2CONVEND - LED2 convert phase end
 
-    AFEwrite(0x36, 0);        // LED3LEDSTC - LED3 start
-    AFEwrite(0x37, 0);        // LED3LEDENDC - LED3 end
+    AFEwrite(0x36, 401);        // LED3LEDSTC - LED3 start
+    AFEwrite(0x37, 800);        // LED3LEDENDC - LED3 end
     AFEwrite(0x05, 501);        // ALED2STC/LED3STC- Sample ambient 2 (or sample LED3) start
     AFEwrite(0x06, 800);        // ALED2ENDC/LED3ENDC - Sample ambient 2 (or sample LED3) end
     AFEwrite(0x17, 1470);       // ADCRSTSTCT1 - ADC reset phase 1 start
@@ -153,9 +153,10 @@ void ProtoBeat_Sensor::AFEconfig(void){
 
     AFEwrite(0x1E, 259);        // ADC averages 
     AFEwrite(0x20, 0);          // Configuration of the transimpedance amplifier
-    AFEwrite(0x21, 61);          // Configuration of the transimpedance amplifier
-    // AFEwrite(0x22, 260958);      // (260958 decimal) (Max Green=30 (011110), Red=45 (101101), IR=63 (111111))
-    AFEwrite(0x22, 193);      // (260958 decimal) (Green=20 (011001), Red=45 (101101), IR=63 (111111))/ 260948
+    AFEwrite(0x21, 13);          // Configuration of the transimpedance amplifier
+    AFEwrite(0x22, 82713);      // Broadband photodiode
+    // AFEwrite(0x22, 793);      // Broadband photodiode
+    // AFEwrite(0x22, 1922);      // IR-CUT photodiode
     AFEwrite(0x3A, 0);        // Offset cancelation trial 
 
     Serial.println("Enable the readout of write registers");
@@ -194,9 +195,9 @@ int32_t ProtoBeat_Sensor::getMeasurement(uint8_t selector){
             data = led_data;// - ambient_data;
         break;
         case IR_LED:    // LED3VAL
-            data = AFEread(0x2B);
+            // data = AFEread(0x2B);
             //ambient_data = AFEread(0x2D);
-            data = led_data; // - ambient_data;
+            data = AFEread(0x2B);
         break;
         case AMBIENT_1:   // ALED1VAL
             data = AFEread(0x2D);
