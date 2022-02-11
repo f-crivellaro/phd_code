@@ -152,10 +152,12 @@ void ProtoBeat_Sensor::AFEconfig(void){
     AFEwrite(0x33, 39199);      // PDNCYCLEENDC
 
     AFEwrite(0x1E, 259);        // ADC averages 
-    AFEwrite(0x20, 0);          // Configuration of the transimpedance amplifier
-    AFEwrite(0x21, 13);          // Configuration of the transimpedance amplifier
-    AFEwrite(0x22, 82713);      // Broadband photodiode
-    // AFEwrite(0x22, 793);      // Broadband photodiode
+    AFEwrite(0x20, 32781);          // Configuration of the transimpedance amplifier
+    // AFEwrite(0x20, 0);          // Configuration of the transimpedance amplifier
+    AFEwrite(0x21, 12);          // Configuration of the transimpedance amplifier
+    // AFEwrite(0x21, 13);          // Configuration of the transimpedance amplifier
+    AFEwrite(0x22, 82708);      // Broadband photodiode
+    // AFEwrite(0x22, 82713);      // Broadband photodiode
     // AFEwrite(0x22, 1922);      // IR-CUT photodiode
     AFEwrite(0x3A, 0);        // Offset cancelation trial 
 
