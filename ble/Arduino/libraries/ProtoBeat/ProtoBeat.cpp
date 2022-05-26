@@ -178,6 +178,7 @@ void ProtoBeat_Sensor::reset(void){
 
 
 void ProtoBeat_Sensor::powerdown(void){
+    AFEwrite(0x00, 0);          // Registers in write mode
     AFEwrite(0x23, 131585);
 }
 

@@ -26,7 +26,7 @@ start_time = time.time()
 
 # Set up a specific logger with our desired output level
 log = logging.getLogger('')
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(asctime)-19s \t %(levelname)-8s \t %(message)s")
 
 # Set logger directory
@@ -52,12 +52,15 @@ client.connect(broker_address)
 topic_cmd = "spec/cmd/meas"
 topic_beat = "protobeat/command"
 topic_fever = "fever/command"
+topic_bili = "protobili/command"
 log.info("Subscribing to topic %s" %topic_cmd)
 log.info("Subscribing to topic %s" %topic_beat)
 log.info("Subscribing to topic %s" %topic_fever)
+log.info("Subscribing to topic %s" %topic_bili)
 client.subscribe(topic_cmd)
 client.subscribe(topic_beat)
 client.subscribe(topic_fever)
+client.subscribe(topic_bili)
 
 last_msg = {}
 def measure_request(client, userdata, message):
@@ -82,9 +85,27 @@ def beat_request(client, userdata, message):
     # log.info("MQTT: publishing message to topic %s - msg %s", topic, last_beat_msg)
     # client.publish(topic, json.dumps(last_beat_msg))
 
+send_bili_config = False
+bili_settings = {}
+def bili_config(client, userdata, message):
+    global send_bili_config, bili_settings
+    msg = json.loads(message.payload.decode("utf-8"))
+    log.info(f'ProtoBili request callback: msg={msg}')
+    log.debug(f'Atime: {msg["Atime"]}')
+    log.debug(f'Astep: {msg["Astep"]}')
+    log.debug(f'Again: {msg["Again"]}')
+    log.debug(f'controlLed: {msg["controlLed"]}')
+    bili_settings["Atime"] = msg["Atime"]
+    bili_settings["Astep"] = msg["Astep"]
+    bili_settings["Again"] = msg["Again"]
+    bili_settings["controlLed"] = msg["controlLed"]
+    send_bili_config = True
+
+
 
 client.message_callback_add(topic_cmd, measure_request)
 client.message_callback_add(topic_beat, beat_request)
+client.message_callback_add(topic_bili, bili_config)
 client.loop_start()
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -123,7 +144,7 @@ class MyDelegate(DefaultDelegate):
     def handleNotification(self, cHandle, data):
         global last_msg, last_beat_msg, sensorType, ProtoDevice
         data_decoded = data.decode("utf-8")
-        # log.info("A notification was received: %s", data_decoded)
+        log.info("A notification was received: %s", data_decoded)
         if sensorType == "Proto-Light":
             measures = data_decoded
             measures_splitted = measures.split('/')
@@ -226,7 +247,7 @@ def detectProtos(devices):
                 if value == "Proto-Fever" or value == "Proto-Light" or value == "Proto-Beat":
                     sensorType = value
                     device = Peripheral(dev.addr)
-                    device.setMTU(50)
+                    device.setMTU(60)
                     device.setDelegate(MyDelegate())
                     ble_device = ProtoBle(dev.addr, value, device.getServices())
                     for svc in ble_device.services:
@@ -267,6 +288,15 @@ while True:
                 bleChar[1].write(bytes(str(samples), 'ascii'))
                 # bleChar[1].write(bytes.fromhex(samples))
                 sendSamples = False
+            if send_bili_config:
+                bleSensor = UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+                bleService = ProtoDevice.getServiceByUUID(bleSensor)
+                bleChar = bleService.getCharacteristics()
+                # bleChar[1].write(str(samples).encode())
+                # bleChar[1].write(bytes([samples]))
+                bleChar[1].write(bytes(str(bili_settings), 'ascii'))
+                # bleChar[1].write(bytes.fromhex(samples))
+                send_bili_config = False
         else:
             log.info("BLE Scanning for ProtoDevices")
             devices = scanner.scan(2.0)

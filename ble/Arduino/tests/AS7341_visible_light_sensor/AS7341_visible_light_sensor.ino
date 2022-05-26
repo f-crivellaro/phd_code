@@ -22,6 +22,14 @@ uint8_t txValue = 0;
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
+class BiliConfig {    
+  public:             
+    uint8_t Atime;
+    uint16_t Astep;
+    uint8_t Again;
+    uint8_t controlLed;
+};
+
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
@@ -59,15 +67,15 @@ bool lightSensor = false;
 void ConfigureSensors(void) {
 //  //Integration time = (ATIME + 1) x (ASTEP + 1) x 2.78µs
 //  //Set the value of register ATIME(1-255), through which the value of Integration time can be calculated. The value represents the time that must be spent during data reading.
-//  as7341.setAtime(29);
+  as7341.setAtime(255);
 //  //Set the value of register ASTEP(0-65534), through which the value of Integration time can be calculated. The value represents the time that must be spent during data reading.
-//  as7341.setAstep(599);
+  as7341.setAstep(5000);
 //  //Set gain value(0~10 corresponds to X0.5,X1,X2,X4,X8,X16,X32,X64,X128,X256,X512)
-//  as7341.setAGAIN(7);
+  as7341.setAGAIN(1);
 //  Enable LED
 //  as7341.enableLed(true);
 //  Set pin current to control brightness (1~20 corresponds to current 4mA,6mA,8mA,10mA,12mA,......,42mA)
-  as7341.controlLed(4);
+  as7341.controlLed(20);
 }
 
 void SearchSensors(void) {
@@ -86,6 +94,7 @@ void SearchSensors(void) {
 void MeasureLight(uint16_t * spectrum) {
   DFRobot_AS7341::sModeOneData_t data1;
   DFRobot_AS7341::sModeTwoData_t data2;
+  uint8_t flicker = 0;
   
   //Start spectrum measurement 
   //  Enable LED
@@ -121,7 +130,7 @@ void MeasureLight(uint16_t * spectrum) {
   spectrum[6] = data2.ADF7;
   spectrum[7] = data2.ADF8;
   spectrum[8] = data2.ADNIR;
-//  spectrum[8] = data2.ADCLEAR;
+//  spectrum[9] = data2.ADCLEAR;
   Serial.print("F5(545-565nm):");
   Serial.println(data2.ADF5);
   Serial.print("F6(580-600nm):");
@@ -134,6 +143,10 @@ void MeasureLight(uint16_t * spectrum) {
   Serial.println(data2.ADCLEAR);
   Serial.print("NIR:");
   Serial.println(data2.ADNIR);
+  flicker = as7341.readFlickerData();
+//  spectrum[10] = flicker;
+  Serial.print("Flicker:");
+  Serial.println(flicker);
 }
 
 
@@ -215,18 +228,17 @@ void loop() {
     std::stringstream stream;
     std::string payload;
     for (int i = 0; i < sizeof(spectrum)/sizeof(spectrum[0]); i++) {
+      Serial.println(i);
+      Serial.println(spectrum[i]);
       stream << std::fixed << std::setprecision(2) << spectrum[i];
       if (i < (sizeof(spectrum)/sizeof(spectrum[0])-1)) {
+        Serial.println(i);
         stream << "/";
       }
 //      std::string s = to_string(spectrum[i]);
 //      payload.append(s);
     }
     std::string s = stream.str();
-//      payload.append(s);      
-//    std::string sbegin = "\n";
-//    sbegin.append(s);
-//    sbegin.append(" °C");
     pTxCharacteristic->setValue(s);
     pTxCharacteristic->notify();
   }

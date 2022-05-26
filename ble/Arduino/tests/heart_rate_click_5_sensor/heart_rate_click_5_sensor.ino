@@ -159,6 +159,7 @@ void systemStart(void){
         pinMode(ADC_RDY_INT_GPIO, INPUT);
         beatSensor.reset();
         beatSensor.powerdown();
+//        beatSensor.reset();
 //        attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
 //        beatSensor.AFEconfig();
     }
@@ -207,10 +208,8 @@ void setup() {
 
 void loop() {
   
-  // Timer for measurement reading
+  // Measurement reading
   if (AFE_ReadEnable){
-//    if(millis() > timerSampling + INTERVAL_SAMPLE){ 
-//      Serial.println("Reading Measurements...");
       measurement = beatSensor.getMeasurement(GREEN_LED); // Read the measurement data
       measurements[sample_cnt] = measurement;
       redMeasurement = beatSensor.getMeasurement(RED_LED);// Read the measurement data
@@ -230,8 +229,10 @@ void loop() {
         detachInterrupt(ADC_RDY_INT_GPIO);
         AFE_ReadEnable = false;   // Stops to read measurements until next trigger
         beatSensor.powerdown();
+//        beatSensor.reset();
+        Serial.println("Sensor in power down mode");
         if (deviceConnected) {
-          Serial.println("Starting to send buffer through BLE...");
+          Serial.println("Writing buffers..");
           for (uint32_t i = 0; i < setSamples; i++) {
             BLEBufferMeasurements[i] = measurements[i];
             BLEBufferRedMeasurements[i] = redMeasurements[i];
@@ -240,10 +241,9 @@ void loop() {
             BLEBufferTimestamps[i] = timestamps[i];
           }
           timerBLE = 0;           // Enable the BLE transmission
+          Serial.println("Starting to send buffer through BLE...");
         }
       }
-      timerSampling = millis();   // Restart the measurement reading
-//    }
   }
 
   // Timer to not overload the BLE communication
@@ -252,10 +252,9 @@ void loop() {
       if (data_cnt == setSamples){
         pTxCharacteristic->setValue("endArray");
         pTxCharacteristic->notify();
-        Serial.println("Buffer sent");
+        Serial.println("BLE transfer ended");
         data_cnt = 0;
         timerBLE = 0xFFFFFFFF - INTERVAL_BLE;   // Stop data transfer
-//        AFE_ReadEnable = true;                  // Enable new measurements reading
         beatSensor.reset();
         beatSensor.AFEconfig();
         time(&startTime);
@@ -263,11 +262,9 @@ void loop() {
         Serial.print("Sampling starting with ");
         Serial.print(setSamples);
         Serial.println(" samples");
-        Serial.println(startTime);
-        Serial.println(xStartTime);
+//        Serial.println(startTime);
+//        Serial.println(xStartTime);
         attachInterrupt(ADC_RDY_INT_GPIO, INThandler, RISING);
-//        timerEndArray = millis();
-//        timerAuxEndArray = millis();
       } else {
 //        Serial.println("Sending data...");
         std::stringstream stream;
@@ -290,19 +287,6 @@ void loop() {
       }
     }
   }
-
-//  // Timer to wait al
-//  if(millis() < timerEndArray + INTERVAL_END_ARRAY){
-//    timerAuxEndArray = millis();
-//  } else {
-//    if (timerAuxEndArray > 0){
-//      timerEndArray = 0;
-//      timerAuxEndArray = 0;
-//      AFE_ReadEnable = true;
-//      timerSampling = millis();
-//    }
-//  }
-
 
   // BLE routines
   if (!deviceConnected && oldDeviceConnected) {
