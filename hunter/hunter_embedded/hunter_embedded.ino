@@ -3,7 +3,7 @@
 #include "defines.h"
 #include <SPI.h>
 
-static const int spiClk = 1000000; // 1 MHz
+static const int spiClk = 400000; // 400 khz
 
 //uninitalised pointers to SPI objects
 SPIClass * vspi = NULL;
@@ -39,14 +39,14 @@ void SPI_Init(void)
 
 void SPI_Write(word data)
 {
-  vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE0));
+  vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
   digitalWrite(vspi->pinSS(), LOW); // begin the transfer
   
   byte low_byte = data & 0x00FF;
   byte high_byte = (data >> 8) & 0x00FF;
   
-  vspi->transfer(low_byte);
   vspi->transfer(high_byte);
+  vspi->transfer(low_byte);
   
   digitalWrite(vspi->pinSS(), HIGH); // end the transfer
   vspi->endTransaction();
@@ -72,15 +72,19 @@ void setup()
   Serial.println("Resetting DDS..");
   digitalWrite(17, LOW);
   delay(500);
-  digitalWrite(17, HIGH);
-  delay(500);
-  digitalWrite(17, LOW);
-  Serial.println("SPI Beginning..");
   SPI_Init();
-  SPI_Write(0x1040);
+  SPI_Write(0x2300);
+  digitalWrite(17, HIGH);
+  Serial.println("Reset High");
+  delay(2000);
+  digitalWrite(17, LOW);
+  Serial.println("Reset Low");
+  delay(2000);
+  SPI_Write(0x2200);
   Serial.println("Setting Frequency..");
-  SPI_Write(0x54E6);
-  //SPI_Write(0x4A73);
+  //SPI_Write(0x54E6); // 1000 Hz
+  SPI_Write(0x4A8C); //500 Hz
+  SPI_Write(0x4000);
   Serial.println("All Setup Done!");
   
 }
