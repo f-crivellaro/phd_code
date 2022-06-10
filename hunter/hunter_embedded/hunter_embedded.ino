@@ -22,7 +22,7 @@ void SPI_Init(void)
 {
   //initialise two instances of the SPIClass attached to VSPI and HSPI respectively
   vspi = new SPIClass(VSPI);
-  //hspi = new SPIClass(HSPI);
+  hspi = new SPIClass(HSPI);
 
   //initialise vspi with default pins
   //SCLK = 18, MISO = 19, MOSI = 23, SS = 5
@@ -30,12 +30,12 @@ void SPI_Init(void)
 
   //initialise hspi with default pins
   //SCLK = 14, MISO = 12, MOSI = 13, SS = 15
-  //hspi->begin();
+  hspi->begin();
 
   //set up slave select pins as outputs as the Arduino API
   //doesn't handle automatically pulling SS low
   pinMode(vspi->pinSS(), OUTPUT); //VSPI SS
-  //pinMode(hspi->pinSS(), OUTPUT); //HSPI SS
+  pinMode(hspi->pinSS(), OUTPUT); //HSPI SS
 }
 
 void SPI_Write(word data) 
@@ -51,6 +51,17 @@ void SPI_Write(word data)
   
   digitalWrite(vspi->pinSS(), HIGH); // end the transfer
   vspi->endTransaction();
+
+  hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
+  digitalWrite(vspi->pinSS(), LOW); // begin the transfer
+  digitalWrite(hspi->pinSS(), LOW); // begin the transfer
+  
+  hspi->transfer(high_byte);
+  hspi->transfer(low_byte);
+  
+  digitalWrite(vspi->pinSS(), HIGH); // end the transfer
+  digitalWrite(hspi->pinSS(), HIGH); // end the transfer
+  hspi->endTransaction();
 }
 
 void setup()
@@ -182,24 +193,12 @@ void setFreq(char *freqout) {
   Serial.println(freqreg_low);
   Serial.println(freqreg_high);
 
-//  Serial.println("Resetting DDS..");
-//  digitalWrite(17, LOW);
-//  delay(500);
-//  SPI_Write(0x2300);
-//  digitalWrite(17, HIGH);
-//  Serial.println("Reset High");
-//  delay(2000);
-//  SPI_Write(0x2200);
-//  digitalWrite(17, LOW);
-//  Serial.println("Reset Low");
   Serial.println("Resetting");
   SPI_Write(0x2100);
   delay(500);
   Serial.println("Setting Frequency..");
   SPI_Write(freqreg_low);
   SPI_Write(freqreg_high);
-//  SPI_Write(21753); 
-//  SPI_Write(16384);
   SPI_Write(0x2000);
   Serial.println("Ok");
 }
