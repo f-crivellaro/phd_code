@@ -85,31 +85,12 @@ void DDS_B_Write(word data_a, word data_b)
 
 void ResetAll(void)
 {
-//  vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
-//  hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
-//  digitalWrite(vspi->pinSS(), LOW); // begin the transfer
-//  
   DDS_A_Write(0x2100);
-//  DDS_B_Write(0x2100);
 
-//  digitalWrite(vspi->pinSS(), HIGH); // end the transfer
-//  vspi->endTransaction();
-//  hspi->endTransaction();
-
-  
   delay(500);
   
-
-//  vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
-//  hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
-//  digitalWrite(vspi->pinSS(), LOW); // begin the transfer
-  
   DDS_A_Write(0x2000);
-//  DDS_B_Write(0x2000);
 
-//  digitalWrite(vspi->pinSS(), HIGH); // end the transfer
-//  vspi->endTransaction();
-//  hspi->endTransaction();
   delay(500);
 }
 
@@ -275,11 +256,8 @@ void setFreq(char *freqout) {
   DDS_A_Write(freqreg_low);
   DDS_A_Write(freqreg_high);
 
-  DDS_A_Write(0x2000);
-  delay(500);
-
-  char phase[10];
-  sprintf(phase, "%s", "3950");
+    char phase[10];
+  sprintf(phase, "%s", "2048");
   setPhase(phase);
   
   Serial.println("Ok");
@@ -300,13 +278,22 @@ void setPhase(char *phase) {
   Serial.println(phasereg_low);
 
   Serial.println("Resetting");
-  DDS_A_Write(0x2100);
+  DDS_A_Write(0x2200);
+  delay(500);
+  digitalWrite(RESET, HIGH);
+  Serial.println("Reset High");
+  
+//  DDS_A_Write(0x2300);
   delay(500);
   
   Serial.println("Writing Phase..");
   DDS_B_Write(0xC000, phasereg_low);
+
+
+  digitalWrite(RESET, LOW);
+  Serial.println("Reset Low");
   
-  DDS_A_Write(0x2000);
+//  DDS_A_Write(0x2000);
   delay(500);
   Serial.println("Ok");
 }
