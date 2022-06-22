@@ -13,10 +13,12 @@ SPIClass * hspi = NULL;
 EspMQTTClient client(
   WIFI_SSID,
   WIFI_PASSWORD,
-  "192.168.1.254",  // MQTT Broker server ip
+  "192.168.1.253",  // MQTT Broker server ip
   "CCCRiveLlAro",     // Client name that uniquely identify your device
   1883              // The MQTT port, default to 1883. this line can be omitted
 );
+
+char frequency[20];
 
 void SPI_Init(void)
 {
@@ -38,8 +40,9 @@ void SPI_Init(void)
   pinMode(hspi->pinSS(), OUTPUT); //HSPI SS
 }
 
-void SPI_Write(word data) 
+void DDS_A_Write(word data) 
 {
+  hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
   vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
   digitalWrite(vspi->pinSS(), LOW); // begin the transfer
   
@@ -49,24 +52,74 @@ void SPI_Write(word data)
   vspi->transfer(high_byte);
   vspi->transfer(low_byte);
   
+  hspi->transfer(high_byte);
+  hspi->transfer(low_byte);
+  
   digitalWrite(vspi->pinSS(), HIGH); // end the transfer
   vspi->endTransaction();
+  hspi->endTransaction();
+}
 
+void DDS_B_Write(word data_a, word data_b) 
+{
   hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
+  vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
   digitalWrite(vspi->pinSS(), LOW); // begin the transfer
-  digitalWrite(hspi->pinSS(), LOW); // begin the transfer
+
+  byte low_byte = data_a & 0x00FF;
+  byte high_byte = (data_a >> 8) & 0x00FF;
+
+  vspi->transfer(high_byte);
+  vspi->transfer(low_byte);
+
+  low_byte = data_b & 0x00FF;
+  high_byte = (data_b >> 8) & 0x00FF;
   
   hspi->transfer(high_byte);
   hspi->transfer(low_byte);
   
   digitalWrite(vspi->pinSS(), HIGH); // end the transfer
-  digitalWrite(hspi->pinSS(), HIGH); // end the transfer
+  vspi->endTransaction();
   hspi->endTransaction();
 }
+
+void ResetAll(void)
+{
+//  vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
+//  hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
+//  digitalWrite(vspi->pinSS(), LOW); // begin the transfer
+//  
+  DDS_A_Write(0x2100);
+//  DDS_B_Write(0x2100);
+
+//  digitalWrite(vspi->pinSS(), HIGH); // end the transfer
+//  vspi->endTransaction();
+//  hspi->endTransaction();
+
+  
+  delay(500);
+  
+
+//  vspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
+//  hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE2));
+//  digitalWrite(vspi->pinSS(), LOW); // begin the transfer
+  
+  DDS_A_Write(0x2000);
+//  DDS_B_Write(0x2000);
+
+//  digitalWrite(vspi->pinSS(), HIGH); // end the transfer
+//  vspi->endTransaction();
+//  hspi->endTransaction();
+  delay(500);
+}
+
+
+
 
 void setup()
 {
   pinMode(RESET, OUTPUT);   // Reset
+  pinMode(CLR, OUTPUT);     // Reset
   pinMode(DRV_EN, OUTPUT);  // DRV_EN
   pinMode(DRV_A0, OUTPUT);  // DRV_A0
   pinMode(DRV_A1, OUTPUT);  // DRV_A1
@@ -74,6 +127,7 @@ void setup()
   pinMode(RX_A0, OUTPUT);   // RX_A0
   pinMode(RX_A1, OUTPUT);   // RX_A1
   digitalWrite(RESET, LOW);  
+  digitalWrite(CLR, HIGH);  
   digitalWrite(DRV_EN, LOW);  
   digitalWrite(DRV_A0, LOW);  
   digitalWrite(DRV_A1, LOW);  
@@ -89,24 +143,42 @@ void setup()
   //client.enableOTA(); // Enable OTA (Over The Air) updates. Password defaults to MQTTPassword. Port is the default OTA port. Can be overridden with enableOTA("password", port).
   //client.enableLastWillMessage("TestClient/lastwill", "I am going offline");  // You can activate the retain flag by setting the third parameter to tru
   
-  Serial.println("Resetting DDS..");
-  digitalWrite(17, LOW);
-  delay(500);
+  Serial.println("Resetting All DDS..");
   SPI_Init();
-  SPI_Write(0x2300);
-  digitalWrite(17, HIGH);
-  Serial.println("Reset High");
-  delay(2000);
-  SPI_Write(0x2200);
-  digitalWrite(17, LOW);
-  Serial.println("Reset Low");
-  delay(2000);
+  
+  ResetAll();
+
+//  digitalWrite(17, HIGH);
+//  Serial.println("Reset High");
+//  delay(1000);
+//  digitalWrite(17, LOW);
+//  Serial.println("Reset Low");
+//  delay(2000);
+  
+
+//  Serial.println("Setting Phase..");
+//  char phase[10];
+//  sprintf(phase, "%s", 1024);
+//  setPhase(phase);
+
   Serial.println("Setting Frequency..");
-  //SPI_Write(0x54E6); // 1000 Hz
-  //SPI_Write(0x4A7C); //500 Hz
-  //SPI_Write(0x4000);
-  SPI_Write(30147); //500 kHz
-  SPI_Write(16547);
+  sprintf(frequency, "%s", "500000");
+  setFreq(frequency);
+  //DDS_A_Write(0x54E6); // 1000 Hz
+  //DDS_A_Write(0x4A7C); //500 Hz
+  //DDS_A_Write(0x4000);
+//  DDS_A_Write(30147); //500 kHz
+//  DDS_A_Write(16547);
+
+    //DDS_A_Write(29491); //10 MHz
+    //DDS_A_Write(19660);
+  
+//  DDS_B_Write(30147); //500 kHz
+//  DDS_B_Write(16547);
+//  Serial.println("Resetting DDS..");
+//  digitalWrite(17, HIGH);
+//  delay(1000);
+//  digitalWrite(17, LOW);
   Serial.println("All Setup Done!");
   
 }
@@ -185,7 +257,7 @@ void setFreq(char *freqout) {
   Serial.println(tmp);
   float freqout_float = atof(freqout);
   Serial.println(freqout_float);
-  int freqreg = round(freqout_float/(DDS_MCLK/pow(2,28)));
+  unsigned long freqreg = round(freqout_float/(DDS_MCLK/pow(2,28)));
   Serial.println(freqreg);
   Serial.println("Setting Frequency FREQ0");
   word freqreg_low = (freqreg & 0x3FFF) | 0x4000;
@@ -193,13 +265,49 @@ void setFreq(char *freqout) {
   Serial.println(freqreg_low);
   Serial.println(freqreg_high);
 
+//  ResetAll();
+
   Serial.println("Resetting");
-  SPI_Write(0x2100);
+  DDS_A_Write(0x2100);
   delay(500);
+  
   Serial.println("Setting Frequency..");
-  SPI_Write(freqreg_low);
-  SPI_Write(freqreg_high);
-  SPI_Write(0x2000);
+  DDS_A_Write(freqreg_low);
+  DDS_A_Write(freqreg_high);
+
+  DDS_A_Write(0x2000);
+  delay(500);
+
+  char phase[10];
+  sprintf(phase, "%s", "3950");
+  setPhase(phase);
+  
+  Serial.println("Ok");
+}
+
+
+void setPhase(char *phase) {
+  char tmp[30];
+  sprintf(tmp, "Phase Setting of: %s", phase);
+  Serial.println(tmp);
+  float phase_float = atof(phase);
+  Serial.println(phase_float);
+//  long int phasereg = round(phase_float*pow(2,12)/2*3.1415926);
+  long int phasereg = round(phase_float);
+  Serial.println(phasereg);
+  Serial.println("Setting PHASE0 REG");
+  word phasereg_low = (phasereg & 0x0FFF) | 0xC000;
+  Serial.println(phasereg_low);
+
+  Serial.println("Resetting");
+  DDS_A_Write(0x2100);
+  delay(500);
+  
+  Serial.println("Writing Phase..");
+  DDS_B_Write(0xC000, phasereg_low);
+  
+  DDS_A_Write(0x2000);
+  delay(500);
   Serial.println("Ok");
 }
 
@@ -225,6 +333,11 @@ void MQTTSubCallback(const String topic, const String payload) {
       token = strtok(NULL, "-");
       Serial.println(token);
       setFreq(token);
+    } else if (!strncmp("ph", token, 2)) {
+      Serial.println("Received a Phase configuration");
+      token = strtok(NULL, "-");
+      Serial.println(token);
+      setPhase(token);
     }
     client.publish("hunter/reply", "Done!!");
 }

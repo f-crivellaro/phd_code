@@ -5,6 +5,7 @@
 #define WIFI_PASSWORD     "ZFJNW2VQ"
 
 #define RESET             17
+#define CLR               16
 #define DRV_EN            26
 #define DRV_A0            21
 #define DRV_A1            4
