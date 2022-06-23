@@ -272,30 +272,36 @@ void setPhase(char *phase) {
   Serial.println(phase_float);
 //  long int phasereg = round(phase_float*pow(2,12)/2*3.1415926);
   long int phasereg = round(phase_float);
-  Serial.println(phasereg);
-  Serial.println("Setting PHASE0 REG");
-  word phasereg_low = (phasereg & 0x0FFF) | 0xC000;
-  Serial.println(phasereg_low);
-
-  Serial.println("Resetting");
-  DDS_A_Write(0x2200);
-  delay(500);
-  digitalWrite(RESET, HIGH);
-  Serial.println("Reset High");
+  if (phasereg < 4096) {
+    Serial.println(phasereg);
+    Serial.println("Setting PHASE0 REG");
+    word phasereg_low = (phasereg & 0x0FFF) | 0xC000;
+    Serial.println(phasereg_low);
   
-//  DDS_A_Write(0x2300);
-  delay(500);
+    Serial.println("Resetting");
+    DDS_A_Write(0x2200);
+    delay(500);
+    digitalWrite(RESET, HIGH);
+    Serial.println("Reset High");
+    
+  //  DDS_A_Write(0x2300);
+    delay(500);
+    
+    Serial.println("Writing Phase..");
+//    DDS_B_Write(phasereg_low, (phasereg_low + 2048));
+    DDS_B_Write(0xC000, phasereg_low);
   
-  Serial.println("Writing Phase..");
-  DDS_B_Write(0xC000, phasereg_low);
-
-
-  digitalWrite(RESET, LOW);
-  Serial.println("Reset Low");
   
-//  DDS_A_Write(0x2000);
-  delay(500);
-  Serial.println("Ok");
+    digitalWrite(RESET, LOW);
+    Serial.println("Reset Low");
+    
+  //  DDS_A_Write(0x2000);
+    delay(500);
+    Serial.println("Ok");
+  } else {
+    Serial.println("Phase must be lower than 2047");
+  }
+
 }
 
 
