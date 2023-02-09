@@ -69,13 +69,14 @@ void ConfigureSensors(void) {
 //  //Set the value of register ATIME(1-255), through which the value of Integration time can be calculated. The value represents the time that must be spent during data reading.
   as7341.setAtime(255);
 //  //Set the value of register ASTEP(0-65534), through which the value of Integration time can be calculated. The value represents the time that must be spent during data reading.
-  as7341.setAstep(5000);
+  as7341.setAstep(7500);
 //  //Set gain value(0~10 corresponds to X0.5,X1,X2,X4,X8,X16,X32,X64,X128,X256,X512)
   as7341.setAGAIN(1);
 //  Enable LED
 //  as7341.enableLed(true);
 //  Set pin current to control brightness (1~20 corresponds to current 4mA,6mA,8mA,10mA,12mA,......,42mA)
   as7341.controlLed(20);
+  as7341.enableLed(true);
 }
 
 void SearchSensors(void) {
@@ -98,7 +99,7 @@ void MeasureLight(uint16_t * spectrum) {
   
   //Start spectrum measurement 
   //  Enable LED
-  as7341.enableLed(true);
+//  as7341.enableLed(true);
   delay(10);
   //Channel mapping mode: 1.eF1F4ClearNIR,2.eF5F8ClearNIR
   as7341.startMeasure(as7341.eF1F4ClearNIR);
@@ -124,7 +125,7 @@ void MeasureLight(uint16_t * spectrum) {
   //Read the value of sensor data channel 0~5, under eF5F8ClearNIR
   data2 = as7341.readSpectralDataTwo();
   //  Disable LED
-  as7341.enableLed(false);
+//  as7341.enableLed(false);
   spectrum[4] = data2.ADF5;
   spectrum[5] = data2.ADF6;
   spectrum[6] = data2.ADF7;
