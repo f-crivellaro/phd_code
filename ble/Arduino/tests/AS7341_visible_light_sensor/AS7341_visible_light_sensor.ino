@@ -67,11 +67,11 @@ bool lightSensor = false;
 void ConfigureSensors(void) {
 //  //Integration time = (ATIME + 1) x (ASTEP + 1) x 2.78µs
 //  //Set the value of register ATIME(1-255), through which the value of Integration time can be calculated. The value represents the time that must be spent during data reading.
-  as7341.setAtime(255);
+  as7341.setAtime(128);
 //  //Set the value of register ASTEP(0-65534), through which the value of Integration time can be calculated. The value represents the time that must be spent during data reading.
-  as7341.setAstep(7500);
+  as7341.setAstep(1394);
 //  //Set gain value(0~10 corresponds to X0.5,X1,X2,X4,X8,X16,X32,X64,X128,X256,X512)
-  as7341.setAGAIN(1);
+  as7341.setAGAIN(4);
 //  Enable LED
 //  as7341.enableLed(true);
 //  Set pin current to control brightness (1~20 corresponds to current 4mA,6mA,8mA,10mA,12mA,......,42mA)
@@ -100,8 +100,9 @@ void MeasureLight(uint16_t * spectrum) {
   //Start spectrum measurement 
   //  Enable LED
 //  as7341.enableLed(true);
-  delay(10);
+  //delay(10);
   //Channel mapping mode: 1.eF1F4ClearNIR,2.eF5F8ClearNIR
+  Serial.println("Start spectrum F1-F4 measurement");
   as7341.startMeasure(as7341.eF1F4ClearNIR);
   //Read the value of sensor data channel 0~5, under eF1F4ClearNIR
   data1 = as7341.readSpectralDataOne();
@@ -109,18 +110,19 @@ void MeasureLight(uint16_t * spectrum) {
   spectrum[1] = data1.ADF2;
   spectrum[2] = data1.ADF3;
   spectrum[3] = data1.ADF4;
-  Serial.print("F1(405-425nm):");
-  Serial.println(data1.ADF1);
-  Serial.print("F2(435-455nm):");
-  Serial.println(data1.ADF2);
-  Serial.print("F3(470-490nm):");
-  Serial.println(data1.ADF3);
-  Serial.print("F4(505-525nm):");   
-  Serial.println(data1.ADF4);
+//  Serial.print("F1(405-425nm):");
+//  Serial.println(data1.ADF1);
+//  Serial.print("F2(435-455nm):");
+//  Serial.println(data1.ADF2);
+//  Serial.print("F3(470-490nm):");
+//  Serial.println(data1.ADF3);
+//  Serial.print("F4(505-525nm):");   
+//  Serial.println(data1.ADF4);
   //Serial.print("Clear:");
   //Serial.println(data1.ADCLEAR);
   //Serial.print("NIR:");
   //Serial.println(data1.ADNIR);
+  Serial.println("Start spectrum F5-NIR measurement");
   as7341.startMeasure(as7341.eF5F8ClearNIR);
   //Read the value of sensor data channel 0~5, under eF5F8ClearNIR
   data2 = as7341.readSpectralDataTwo();
@@ -132,22 +134,24 @@ void MeasureLight(uint16_t * spectrum) {
   spectrum[7] = data2.ADF8;
   spectrum[8] = data2.ADNIR;
 //  spectrum[9] = data2.ADCLEAR;
-  Serial.print("F5(545-565nm):");
-  Serial.println(data2.ADF5);
-  Serial.print("F6(580-600nm):");
-  Serial.println(data2.ADF6);
-  Serial.print("F7(620-640nm):");
-  Serial.println(data2.ADF7);
-  Serial.print("F8(670-690nm):");
-  Serial.println(data2.ADF8);
-  Serial.print("Clear:");
-  Serial.println(data2.ADCLEAR);
-  Serial.print("NIR:");
-  Serial.println(data2.ADNIR);
-  flicker = as7341.readFlickerData();
+//  Serial.print("F5(545-565nm):");
+//  Serial.println(data2.ADF5);
+//  Serial.print("F6(580-600nm):");
+//  Serial.println(data2.ADF6);
+//  Serial.print("F7(620-640nm):");
+//  Serial.println(data2.ADF7);
+//  Serial.print("F8(670-690nm):");
+//  Serial.println(data2.ADF8);
+//  Serial.print("Clear:");
+//  Serial.println(data2.ADCLEAR);
+//  Serial.print("NIR:");
+//  Serial.println(data2.ADNIR);
+//Serial.println("Start flicker measurement");
+  //flicker = as7341.readFlickerData();
 //  spectrum[10] = flicker;
-  Serial.print("Flicker:");
-  Serial.println(flicker);
+//  Serial.print("Flicker:");
+//  Serial.println(flicker);
+Serial.println("End measurements");
 }
 
 
@@ -222,18 +226,17 @@ void loop() {
 
 
   // Light Sensor routines
-  SearchSensors();
   if (lightSensor) {
     MeasureLight(spectrum);
-    Serial.println("**********");
+    //Serial.println("**********");
     std::stringstream stream;
     std::string payload;
     for (int i = 0; i < sizeof(spectrum)/sizeof(spectrum[0]); i++) {
-      Serial.println(i);
-      Serial.println(spectrum[i]);
+      //Serial.println(i);
+      //Serial.println(spectrum[i]);
       stream << std::fixed << std::setprecision(2) << spectrum[i];
       if (i < (sizeof(spectrum)/sizeof(spectrum[0])-1)) {
-        Serial.println(i);
+        //Serial.println(i);
         stream << "/";
       }
 //      std::string s = to_string(spectrum[i]);
@@ -242,7 +245,9 @@ void loop() {
     std::string s = stream.str();
     pTxCharacteristic->setValue(s);
     pTxCharacteristic->notify();
+  } else {
+    SearchSensors();
   }
 
-  delay(5000);
+  // delay(100);
 }
