@@ -49,6 +49,7 @@ log.info("MQTT: creating a new MQTT client instance")
 client = mqtt.Client("Proto-PC")
 log.info("MQTT: connecting to broker - %s", broker_address)
 client.connect(broker_address)
+topic_quality = "spec/cmd/quality"
 topic_cmd = "spec/cmd/meas"
 topic_beat = "protobeat/command"
 topic_fever = "fever/command"
@@ -57,10 +58,19 @@ log.info("Subscribing to topic %s" %topic_cmd)
 log.info("Subscribing to topic %s" %topic_beat)
 log.info("Subscribing to topic %s" %topic_fever)
 log.info("Subscribing to topic %s" %topic_bili)
+client.subscribe(topic_quality)
 client.subscribe(topic_cmd)
 client.subscribe(topic_beat)
 client.subscribe(topic_fever)
 client.subscribe(topic_bili)
+
+
+last_quality_msg = {}
+def measure_quality(client, userdata, message):
+    log.info('Quality measurement request callback')
+    topic = "spec/reply/quality"
+    log.info("MQTT: publishing message to topic %s", topic)
+    client.publish(topic, json.dumps(last_quality_msg))
 
 last_msg = {}
 def measure_request(client, userdata, message):
@@ -103,6 +113,7 @@ def bili_config(client, userdata, message):
 
 
 
+client.message_callback_add(topic_quality, measure_quality)
 client.message_callback_add(topic_cmd, measure_request)
 client.message_callback_add(topic_beat, beat_request)
 client.message_callback_add(topic_bili, bili_config)
@@ -145,6 +156,17 @@ class MyDelegate(DefaultDelegate):
         global last_msg, last_beat_msg, sensorType, ProtoDevice
         data_decoded = data.decode("utf-8")
         log.info("A notification was received: %s", data_decoded)
+        if sensorType == "Proto-Quality":
+            measures = data_decoded
+            measures_splitted = measures.split('/')
+            measures_formatted = [int(a) for a in measures_splitted]
+            # log.debug('Measured Splited: %s', measures_formatted)
+            wavelengths = [415, 445, 480, 515, 555, 590, 630, 680, 910]
+            msg = {'data': measures_formatted, 'wavelengths': wavelengths}
+            last_quality_msg = msg
+            topic = "spec/reply/quality"
+            log.info("MQTT: publishing message to topic %s", topic)
+            client.publish(topic, json.dumps(last_quality_msg))
         if sensorType == "Proto-Light":
             measures = data_decoded
             measures_splitted = measures.split('/')
@@ -240,11 +262,11 @@ class MyDelegate(DefaultDelegate):
 def detectProtos(devices):
     global sensorType
     for dev in devices:
-        log.debug("Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi))
+        # log.debug("Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi))
         for (adtype, desc, value) in dev.getScanData():
-            log.debug("  %s = %s" % (desc, value))
+            # log.debug("  %s = %s" % (desc, value))
             if desc == "Complete Local Name":
-                if value == "Proto-Fever" or value == "Proto-Light" or value == "Proto-Beat":
+                if value == "Proto-Fever" or value == "Proto-Light" or value == "Proto-Beat" or value == "Proto-Quality":
                     sensorType = value
                     device = Peripheral(dev.addr)
                     device.setMTU(60)
