@@ -159,7 +159,7 @@ Serial.println("End measurements");
 
 void setup() {
   delay(1000);
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("\nWelcome to BLE Light Sensor");
    
   // Create the BLE Device

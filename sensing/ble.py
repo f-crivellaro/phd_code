@@ -11,6 +11,7 @@ import csv
 from datetime import datetime
 from scipy import signal
 import statistics
+from universe import AdaLovelace
 
 # ------------------------------------------------------------------------------
 
@@ -62,7 +63,6 @@ client.subscribe(topic_cmd)
 client.subscribe(topic_beat)
 client.subscribe(topic_fever)
 client.subscribe(topic_bili)
-
 
 last_quality_msg = {}
 def measure_quality(client, userdata, message):
@@ -140,6 +140,7 @@ class ProtoBle:
 
 
 sensorType = ""
+sensor = AdaLovelace()
 
 class MyDelegate(DefaultDelegate):
     def __init__(self):
@@ -161,7 +162,9 @@ class MyDelegate(DefaultDelegate):
             measures_formatted = [int(a) for a in measures_splitted]
             # log.debug('Measured Splited: %s', measures_formatted)
             wavelengths = [415, 445, 480, 515, 555, 590, 630, 680, 910]
-            msg = {'data': measures_formatted, 'wavelengths': wavelengths}
+            msg_pre = {'data': measures_formatted, 'wavelengths': wavelengths}
+            compounds = sensor.compounds_calculation(msg_pre)
+            msg = {'data': measures_formatted, 'wavelengths': wavelengths, 'compounds': compounds.tolist()}
             last_quality_msg = msg
             topic = "spec/reply/quality"
             # Call a function to calculate physiological parameters (different file)
@@ -320,7 +323,7 @@ while True:
                 send_bili_config = False
         else:
             log.info("BLE Scanning for ProtoDevices")
-            devices = scanner.scan(10)
+            devices = scanner.scan(2)
             ProtoDevice = detectProtos(devices)
             time.sleep(2)
     except KeyboardInterrupt:
