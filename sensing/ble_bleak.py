@@ -7,6 +7,7 @@ from universe import AdaLovelace
 import random
 
 DEVICE_NAME = "Proto-Quality"
+# DEVICE_NAME = "Proto-Beat"
 SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 CHARACTERISTIC_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  # Notification characteristic
 
@@ -118,6 +119,22 @@ def notification_handler(sender, data, device_name):
     print(f"MQTT: publishing message to topic {topic}")
     client.publish(topic, json.dumps(last_quality_msg))
 
+async def send_integer_to_ble(address):
+    async with BleakClient(address) as client:
+        # if await client.is_connected():
+        print(f"Connected to {DEVICE_NAME}")
+
+        # Integer to send
+        my_int = 100
+
+        # Convert integer to 2-byte little-endian format
+        # data = my_int.to_bytes(2, byteorder='little', signed=True)
+        data = bytes("50", 'ascii')
+
+        # Write data to BLE characteristic
+        await client.write_gatt_char(CHARACTERISTIC_UUID, data, response=False)
+        print(f"Sent integer {my_int} as bytes {data}")
+
 async def subscribe_to_notifications(address):
     async with BleakClient(address) as client:
         print(f"Connected to {DEVICE_NAME}")
@@ -148,6 +165,7 @@ async def subscribe_to_notifications(address):
 async def main():
     address = await find_device()
     if address:
+        await send_integer_to_ble(address)
         await subscribe_to_notifications(address)
 
 if __name__ == "__main__":
